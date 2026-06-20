@@ -1,1 +1,6 @@
 target
+cloud/.terraform/*
+cloud/*.tfvars
+cloud/*.tfstate
+cloud/*.tfstate.backup
+!cloud/*.auto.tfvars
