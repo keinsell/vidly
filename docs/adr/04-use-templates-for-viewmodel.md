@@ -1,0 +1,3 @@
+# Use templating rather than SPA for beginning
+
+Myślałem nad tworzeniem interfejsu użytkownika dla tej aplikacji sieciowej, znałem wiele bibliotek oraz podejść z tych których używałem w przeszłości, ale doszedłem do wniosku że nie ma sensu tworzyć osobnej aplikacji front-endowej w tym momencie - użyłem tego co było pod ręką a w tym przypadku było to `askama` i proste templateki HTML aby stworzyć wstępny szkic aplikacji który jeszcze nie był w pełni funkcjonaly, przed jakąkolwiek zmianą w kierunku SPA aplikacja powinna być w pełni funkcjonalna i używalna, a potem zostawiam sobie wolną rękę aby pobawić się różnymi technologiami i napisać front-end lepiej.
