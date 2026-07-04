@@ -1,0 +1,1 @@
+A single object can contain a lot of diffferent metadata beyond what is realistically stored inside application's database, and modern containers can store far more than codec and resolution which is something you could take attention to in this project.

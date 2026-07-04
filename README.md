@@ -1,3 +1,3 @@
-# [___]
+# Vidly
 
-**[___]** była prostą oraz niedopracowaną platformą internetową która chciała umożliwić możliwość dzielenia się doświadczeniami.
+Vidly is a web application that allows users to browse, upload, and manage digital media content.
