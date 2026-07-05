@@ -27,3 +27,6 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .config_dir()
         .to_path_buf()
 });
+
+pub static OBJECTS_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| DATA_DIR.join("objects"));
