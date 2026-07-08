@@ -7,8 +7,11 @@
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #f5f5f5; }
-        .header { background: #1f2937; padding: 12px 20px; }
-        .logo { font-weight: bold; color: #fff; }
+        .nav { background: #1f2937; padding: 0 20px; display: flex; align-items: center; gap: 0; height: 48px; }
+        .nav-brand { font-weight: 700; color: #fff; font-size: 1.05rem; letter-spacing: 0.02em; padding: 0 20px 0 0; border-right: 1px solid #374151; margin-right: 4px; text-decoration: none; }
+        .nav-link { color: #94a3b8; text-decoration: none; padding: 0 14px; height: 48px; display: flex; align-items: center; font-size: 0.9rem; transition: color 0.15s; }
+        .nav-link:hover { color: #7dd3fc; }
+        .nav-link.active { color: #7dd3fc; border-bottom: 2px solid #7dd3fc; }
         .container { max-width: 100%; margin: 0; padding: 20px 24px 24px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; padding: 0; }
         .card { background: #1f2937; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
@@ -20,8 +23,15 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <span class="logo">Movies</span>
+    <nav class="nav">
+        <a href="/" class="nav-brand">Vidly</a>
+        <a href="/" class="nav-link active">Home</a>
+        <a href="/upload" class="nav-link">Upload</a>
+    </nav>
+
+    <div style="background: #92400e; color: #fef3c7; text-align: center; padding: 10px 24px; font-size: 0.9rem;">
+        ⚠ This instance uses in-memory storage. All data is ephemeral and will be lost on restart.
+        Do not use in production.
     </div>
 
     <div class="container">

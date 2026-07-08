@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Movie</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #f5f5f5; }
+        .nav { background: #1f2937; padding: 0 20px; display: flex; align-items: center; gap: 0; height: 48px; }
+        .nav-brand { font-weight: 700; color: #fff; font-size: 1.05rem; letter-spacing: 0.02em; padding: 0 20px 0 0; border-right: 1px solid #374151; margin-right: 4px; }
+        .nav-link { color: #94a3b8; text-decoration: none; padding: 0 14px; height: 48px; display: flex; align-items: center; font-size: 0.9rem; transition: color 0.15s; }
+        .nav-link:hover { color: #7dd3fc; }
+        .nav-link.active { color: #7dd3fc; border-bottom: 2px solid #7dd3fc; }
+        .container { max-width: 600px; margin: 0 auto; padding: 24px; }
+        h1 { margin-top: 0; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 4px; color: #cbd5e1; font-size: 0.9rem; }
+        input, textarea { width: 100%; padding: 10px 12px; background: #1f2937; border: 1px solid #374151; border-radius: 6px; color: #f5f5f5; font-size: 1rem; }
+        textarea { min-height: 100px; resize: vertical; }
+        input[type="file"] { padding: 8px 0; border: none; background: none; }
+        button { background: #7dd3fc; color: #111; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; }
+        button:hover { background: #38bdf8; }
+        .hint { color: #94a3b8; font-size: 0.8rem; margin-top: 4px; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-brand">Vidly</a>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/upload" class="nav-link active">Upload</a>
+    </nav>
+    <div class="container">
+        <h1>Upload Movie</h1>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="title">Title</label>
+                <input type="text" id="title" name="title" placeholder="Movie title" />
+            </div>
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Movie description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="subtitle">Subtitle</label>
+                <input type="text" id="subtitle" name="subtitle" placeholder="By ..." />
+            </div>
+            <div class="form-group">
+                <label for="video">Video file</label>
+                <input type="file" id="video" name="video" accept="video/*" required />
+                <div class="hint">Supported formats: MP4, WebM, Ogg</div>
+            </div>
+            <div class="form-group">
+                <label for="thumbnail">Thumbnail (optional)</label>
+                <input type="file" id="thumbnail" name="thumbnail" accept="image/*" />
+                <div class="hint">JPEG, PNG, or WebP</div>
+            </div>
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+</body>
+</html>
