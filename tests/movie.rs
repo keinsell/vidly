@@ -101,3 +101,98 @@ async fn upload_movie_without_thumbnail() {
 
     assert!(movie.thumb.is_empty());
 }
+
+#[tokio::test]
+async fn delete_movie_with_video_and_thumbnail() {
+    let repo = repo();
+    let store = store();
+
+    let title = "To Delete".to_string();
+    let description = "desc".to_string();
+    let subtitle = "sub".to_string();
+    let file_bytes = include_bytes!("fixtures/small.mp4").to_vec();
+    let file_name = "small.mp4".to_string();
+    let thumb_bytes = include_bytes!("fixtures/small.jpg").to_vec();
+    let thumb_name = "small.jpg".to_string();
+
+    let movie = movie::upload_movie(
+        title.clone(),
+        description.clone(),
+        subtitle.clone(),
+        file_bytes.clone(),
+        file_name.clone(),
+        thumb_bytes.clone(),
+        thumb_name.clone(),
+        &repo,
+        &store,
+    )
+    .await
+    .expect("upload_movie should succeed");
+
+    let video_hash = hex::encode(sha2::Sha256::digest(&file_bytes));
+    let video_key = format!("uploads/{}.mp4", video_hash);
+    let thumb_hash = hex::encode(sha2::Sha256::digest(&thumb_bytes));
+    let thumb_key = format!("thumbnails/{}.jpg", thumb_hash);
+
+    assert!(store.get_bytes(&video_key).await.unwrap().is_some());
+    assert!(store.get_bytes(&thumb_key).await.unwrap().is_some());
+
+    let deleted = movie::delete_movie(movie.id, &repo, &store)
+        .await
+        .expect("delete_movie should not error");
+    assert!(deleted);
+
+    assert!(store.get_bytes(&video_key).await.unwrap().is_none());
+    assert!(store.get_bytes(&thumb_key).await.unwrap().is_none());
+
+    let movies = repo.list_movies().expect("should list movies");
+    assert_eq!(movies.len(), 4);
+}
+
+#[tokio::test]
+async fn delete_movie_without_thumbnail() {
+    let repo = repo();
+    let store = store();
+
+    let file_bytes = include_bytes!("fixtures/small.mp4").to_vec();
+    let file_name = "small.mp4".to_string();
+
+    let movie = movie::upload_movie(
+        "No Thumb Delete".into(),
+        "desc".into(),
+        "sub".into(),
+        file_bytes.clone(),
+        file_name.clone(),
+        vec![],
+        String::new(),
+        &repo,
+        &store,
+    )
+    .await
+    .expect("upload_movie should succeed");
+
+    let video_hash = hex::encode(sha2::Sha256::digest(&file_bytes));
+    let video_key = format!("uploads/{}.mp4", video_hash);
+
+    assert!(store.get_bytes(&video_key).await.unwrap().is_some());
+
+    let deleted = movie::delete_movie(movie.id, &repo, &store)
+        .await
+        .expect("delete_movie should not error");
+    assert!(deleted);
+
+    assert!(store.get_bytes(&video_key).await.unwrap().is_none());
+
+    let movies = repo.list_movies().expect("should list movies");
+    assert_eq!(movies.len(), 4);
+}
+
+#[tokio::test]
+async fn delete_nonexistent_movie_returns_false() {
+    let repo = repo();
+    let store = store();
+    let deleted = movie::delete_movie(9999, &repo, &store)
+        .await
+        .expect("delete_movie should not error");
+    assert!(!deleted);
+}

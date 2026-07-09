@@ -271,6 +271,16 @@ async fn handle_movie_upload_form(
     }
 }
 
+async fn handle_delete_movie(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    match movie::delete_movie(id, state.movie_repo.as_ref(), state.object_store.as_ref()).await {
+        | Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        | Ok(false) => (StatusCode::NOT_FOUND, "movie not found").into_response(),
+        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error deleting movie").into_response(),
+    }
+}
+
 async fn handle_healthcheck() -> &'static str {
     "OK"
 }
@@ -286,7 +296,7 @@ pub fn router(state: ApplicationState) -> Router {
             "/upload",
             get(handle_movie_upload_render).post(handle_movie_upload_form),
         )
-        .route("/movies/{id}", get(handle_get_movie_render))
+        .route("/movies/{id}", get(handle_get_movie_render).delete(handle_delete_movie))
         .route("/movies", get(handle_query_movies))
         .route("/objects", get(handle_query_objects))
         .route(
@@ -448,5 +458,50 @@ mod tests {
             .into_response();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn delete_movie_returns_no_content_and_removes_movie() {
+        let state = test_state();
+        let boundary = "----testboundary";
+        let body = testutil_multipart_body(boundary, true);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            format!("multipart/form-data; boundary={}", boundary)
+                .parse()
+                .unwrap(),
+        );
+
+        let _ = handle_movie_upload_form(State(state.clone()), headers, Bytes::from(body))
+            .await
+            .into_response();
+
+        let movies = state.movie_repo.list_movies().unwrap();
+        assert_eq!(movies.len(), 5);
+        let movie_id = movies[4].id;
+
+        let response = handle_delete_movie(Path(movie_id), State(state.clone()))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let movies = state.movie_repo.list_movies().unwrap();
+        assert_eq!(movies.len(), 4);
+
+        let response = handle_delete_movie(Path(movie_id), State(state))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn delete_movie_returns_not_found_for_nonexistent_id() {
+        let state = test_state();
+        let response = handle_delete_movie(Path(9999), State(state))
+            .await
+            .into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }
