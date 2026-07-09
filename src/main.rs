@@ -1,14 +1,8 @@
-mod config;
-pub mod database;
-mod movie;
-pub mod object_store;
-mod web;
+use vidly::{config, database, object_store, web};
 
 use std::sync::Arc;
 
-use web::ApplicationState;
-
-async fn bootstrap() -> ApplicationState {
+async fn bootstrap() -> web::ApplicationState {
     let db = database::create_pool(std::path::Path::new(&*config::DATABASE_URL));
     database::run_migrations(&db);
 
@@ -17,15 +11,13 @@ async fn bootstrap() -> ApplicationState {
         object_store::FileBackedObjectStore::new(
             object_store::FileBackedObjectStore::default_path(),
         )
-            .expect("Failed to create object storage"),
+        .expect("Failed to create object storage"),
     );
 
-    let app_state = ApplicationState {
+    web::ApplicationState {
         movie_repo,
         object_store: object_storage,
-    };
-
-    app_state
+    }
 }
 
 #[tokio::main]
