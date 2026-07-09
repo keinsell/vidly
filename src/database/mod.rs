@@ -90,4 +90,35 @@ impl crate::movie::MovieRepository for SqliteMovieRepository {
             .first::<Movie>(&mut conn)
             .map_err(|_| "Database error fetching created movie")
     }
+
+    fn update_movie(&self, movie: &Movie) -> Result<Movie, &'static str> {
+        let mut conn = self.pool.get().map_err(|_| "Failed to get connection")?;
+
+        diesel::update(movies::table.find(movie.id))
+            .set((
+                movies::title.eq(&movie.title),
+                movies::description.eq(&movie.description),
+                movies::subtitle.eq(&movie.subtitle),
+                movies::thumb.eq(&movie.thumb),
+                movies::sources.eq(&movie.sources),
+            ))
+            .execute(&mut conn)
+            .map_err(|_| "Database error updating movie")?;
+
+        movies::table
+            .filter(movies::id.eq(movie.id))
+            .select(Movie::as_select())
+            .first::<Movie>(&mut conn)
+            .map_err(|_| "Database error fetching updated movie")
+    }
+
+    fn delete_movie(&self, id: i32) -> Result<(), &'static str> {
+        let mut conn = self.pool.get().map_err(|_| "Failed to get connection")?;
+
+        diesel::delete(movies::table.find(id))
+            .execute(&mut conn)
+            .map_err(|_| "Database error deleting movie")?;
+
+        Ok(())
+    }
 }

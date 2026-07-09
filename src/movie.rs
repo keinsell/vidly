@@ -6,6 +6,8 @@ pub trait MovieRepository: Send + Sync {
     fn get_movie(&self, id: i32) -> Result<Option<Movie>, &'static str>;
     fn list_movies(&self) -> Result<Vec<Movie>, &'static str>;
     fn create_movie(&self, movie: Movie) -> Result<Movie, &'static str>;
+    fn update_movie(&self, movie: &Movie) -> Result<Movie, &'static str>;
+    fn delete_movie(&self, id: i32) -> Result<(), &'static str>;
 }
 
 pub async fn upload_movie(

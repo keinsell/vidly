@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #f5f5f5; }
+        .nav { background: #1f2937; padding: 0 20px; display: flex; align-items: center; gap: 0; height: 48px; }
+        .nav-brand { font-weight: 700; color: #fff; font-size: 1.05rem; letter-spacing: 0.02em; padding: 0 20px 0 0; border-right: 1px solid #374151; margin-right: 4px; text-decoration: none; }
+        .nav-link { color: #94a3b8; text-decoration: none; padding: 0 14px; height: 48px; display: flex; align-items: center; font-size: 0.9rem; transition: color 0.15s; }
+        .nav-link:hover { color: #7dd3fc; }
+        .nav-link.active { color: #7dd3fc; border-bottom: 2px solid #7dd3fc; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        h1 { margin-top: 0; }
+        .tabs { display: flex; gap: 0; border-bottom: 1px solid #374151; margin-bottom: 20px; }
+        .tab-btn { background: none; border: none; color: #94a3b8; padding: 10px 20px; cursor: pointer; font-size: 0.95rem; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+        .tab-btn:hover { color: #7dd3fc; }
+        .tab-btn.active { color: #7dd3fc; border-bottom-color: #7dd3fc; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+        .btn { background: #7dd3fc; color: #111; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: background 0.15s; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+        .btn:hover { background: #38bdf8; }
+        .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; border: 1px solid #374151; color: #cbd5e1; }
+        .btn-outline:hover { border-color: #7dd3fc; color: #7dd3fc; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1f2937; }
+        th { color: #94a3b8; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        tr { cursor: pointer; transition: background 0.1s; }
+        tr:hover { background: #1f2937; }
+        .actions { display: flex; gap: 6px; }
+        .actions .btn { cursor: pointer; }
+        .preview-panel { background: #1f2937; border-radius: 8px; padding: 16px; margin-top: 20px; display: none; }
+        .preview-panel.active { display: block; }
+        .preview-panel h3 { margin: 0 0 12px; color: #7dd3fc; }
+        .preview-panel p { margin: 4px 0; color: #cbd5e1; font-size: 0.9rem; }
+        .preview-panel img, .preview-panel video { max-width: 100%; border-radius: 4px; margin-top: 8px; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 100; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #1f2937; border-radius: 8px; padding: 24px; width: 90%; max-width: 520px; max-height: 80vh; overflow-y: auto; }
+        .modal h2 { margin: 0 0 16px; }
+        .modal .form-group { margin-bottom: 12px; }
+        .modal label { display: block; margin-bottom: 4px; color: #cbd5e1; font-size: 0.85rem; }
+        .modal input, .modal textarea { width: 100%; padding: 8px 10px; background: #111; border: 1px solid #374151; border-radius: 4px; color: #f5f5f5; font-size: 0.9rem; }
+        .modal textarea { min-height: 80px; resize: vertical; }
+        .modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; background: #374151; color: #94a3b8; }
+        .empty-state { color: #94a3b8; padding: 20px 0; font-size: 0.9rem; }
+        .truncate { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-brand">Vidly</a>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/upload" class="nav-link">Upload</a>
+        <a href="/admin" class="nav-link active">Admin</a>
+    </nav>
+
+    <div class="container">
+        <h1>Administration</h1>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="movies">Movies ({{ movies.len() }})</button>
+            <button class="tab-btn" data-tab="objects">Objects ({{ objects.len() }})</button>
+        </div>
+
+        <div id="tab-movies" class="tab-content active">
+            <div class="toolbar">
+                <button class="btn" onclick="openCreateModal()">+ Create Movie</button>
+            </div>
+
+            {% if movies.is_empty() %}
+                <p class="empty-state">No movies yet.</p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Title</th>
+                            <th>Subtitle</th>
+                            <th>Sources</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for movie in movies %}
+                        <tr onclick="previewMovie({{ movie.id }})">
+                            <td>{{ movie.id }}</td>
+                            <td>{{ movie.title }}</td>
+                            <td>{{ movie.subtitle }}</td>
+                            <td><span class="badge">{{ movie.sources.len() }}</span></td>
+                            <td class="actions" onclick="event.stopPropagation()">
+                                <a href="/movies/{{ movie.id }}" class="btn btn-sm btn-outline" target="_blank">View</a>
+                                <button class="btn btn-sm btn-outline" onclick="openEditModal({{ movie.id }})">Edit</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteMovie({{ movie.id }})">Delete</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+
+            <div id="movie-preview" class="preview-panel"></div>
+        </div>
+
+        <div id="tab-objects" class="tab-content">
+            {% if objects.is_empty() %}
+                <p class="empty-state">No objects stored.</p>
+            {% else %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Size</th>
+                            <th>Last Modified</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for object in objects %}
+                        <tr onclick="previewObject('{{ object.key }}')">
+                            <td class="truncate">{{ object.key }}</td>
+                            <td>{{ object.size }}</td>
+                            <td>{{ object.last_modified.as_deref().unwrap_or("-") }}</td>
+                            <td class="actions" onclick="event.stopPropagation()">
+                                <a href="/object/{{ object.key }}" class="btn btn-sm btn-outline" target="_blank">View</a>
+                                <button class="btn btn-sm btn-danger" onclick="deleteObject('{{ object.key }}')">Remove</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+
+            <div id="object-preview" class="preview-panel"></div>
+        </div>
+    </div>
+
+    <div id="movie-modal" class="modal-overlay">
+        <div class="modal">
+            <h2 id="modal-title">Create Movie</h2>
+            <input type="hidden" id="edit-movie-id" value="">
+            <div class="form-group">
+                <label for="modal-title-field">Title</label>
+                <input type="text" id="modal-title-field" placeholder="Movie title" />
+            </div>
+            <div class="form-group">
+                <label for="modal-description">Description</label>
+                <textarea id="modal-description" placeholder="Movie description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="modal-subtitle">Subtitle</label>
+                <input type="text" id="modal-subtitle" placeholder="By ..." />
+            </div>
+            <div class="form-group">
+                <label for="modal-thumb">Thumbnail URL</label>
+                <input type="text" id="modal-thumb" placeholder="/object/thumbnails/..." />
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+                <button class="btn" id="modal-save-btn" onclick="saveMovie()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script id="movies-json" type="application/json">{{ movies_json|safe }}</script>
+    <script id="objects-json" type="application/json">{{ objects_json|safe }}</script>
+    <script>
+        const movies = JSON.parse(document.getElementById('movies-json').textContent);
+        const objects = JSON.parse(document.getElementById('objects-json').textContent);
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Movie preview
+        function previewMovie(id) {
+            const movie = movies.find(m => m.id === id);
+            if (!movie) return;
+            const panel = document.getElementById('movie-preview');
+            panel.innerHTML = `
+                <h3>${movie.title}</h3>
+                <p><strong>ID:</strong> ${movie.id}</p>
+                <p><strong>Subtitle:</strong> ${movie.subtitle}</p>
+                <p><strong>Description:</strong> ${movie.description}</p>
+                <p><strong>Thumbnail:</strong> ${movie.thumb || '(none)'}</p>
+                ${movie.thumb ? `<img src="${movie.thumb}" alt="${movie.title}" />` : ''}
+                <p><strong>Sources:</strong> ${movie.sources.join(', ')}</p>
+            `;
+            panel.classList.add('active');
+        }
+
+        // Object preview
+        function previewObject(key) {
+            const panel = document.getElementById('object-preview');
+            const mime = key.match(/\.(png|jpe?g|gif|webp|bmp)$/i) ? 'image' :
+                         key.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video' : null;
+            let preview = '';
+            const url = '/object/' + key;
+            if (mime === 'image') {
+                preview = `<img src="${url}" alt="${key}" />`;
+            } else if (mime === 'video') {
+                preview = `<video controls preload="metadata"><source src="${url}" />Your browser does not support the video tag.</video>`;
+            }
+            panel.innerHTML = `
+                <h3>${key}</h3>
+                <p><strong>Size:</strong> ${(objects.find(o => o.key === key) || {}).size || '?'} bytes</p>
+                ${preview || '<p>No preview available.</p>'}
+            `;
+            panel.classList.add('active');
+        }
+
+        // Movie modal (create/edit)
+        function openCreateModal() {
+            document.getElementById('modal-title').textContent = 'Create Movie';
+            document.getElementById('edit-movie-id').value = '';
+            document.getElementById('modal-title-field').value = '';
+            document.getElementById('modal-description').value = '';
+            document.getElementById('modal-subtitle').value = '';
+            document.getElementById('modal-thumb').value = '';
+            document.getElementById('modal-save-btn').textContent = 'Create';
+            document.getElementById('movie-modal').classList.add('active');
+        }
+
+        function openEditModal(id) {
+            const movie = movies.find(m => m.id === id);
+            if (!movie) return;
+            document.getElementById('modal-title').textContent = 'Edit Movie';
+            document.getElementById('edit-movie-id').value = movie.id;
+            document.getElementById('modal-title-field').value = movie.title;
+            document.getElementById('modal-description').value = movie.description;
+            document.getElementById('modal-subtitle').value = movie.subtitle;
+            document.getElementById('modal-thumb').value = movie.thumb;
+            document.getElementById('modal-save-btn').textContent = 'Save';
+            document.getElementById('movie-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('movie-modal').classList.remove('active');
+        }
+
+        function saveMovie() {
+            const id = document.getElementById('edit-movie-id').value;
+            const payload = {
+                title: document.getElementById('modal-title-field').value,
+                description: document.getElementById('modal-description').value,
+                subtitle: document.getElementById('modal-subtitle').value,
+                thumb: document.getElementById('modal-thumb').value,
+            };
+
+            if (id) {
+                // Update existing movie
+                fetch('/movies/' + id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                }).then(r => {
+                    if (r.ok) {
+                        location.reload();
+                    } else {
+                        alert('Failed to update movie');
+                    }
+                }).catch(() => alert('Failed to update movie'));
+            } else {
+                // Create new movie - redirect to upload page for file handling
+                window.location.href = '/upload';
+            }
+        }
+
+        // Delete movie
+        function deleteMovie(id) {
+            if (!confirm('Delete movie #' + id + '? This cannot be undone.')) return;
+            fetch('/movies/' + id, { method: 'DELETE' })
+                .then(r => {
+                    if (r.ok || r.status === 204) {
+                        location.reload();
+                    } else {
+                        alert('Failed to delete movie');
+                    }
+                }).catch(() => alert('Failed to delete movie'));
+        }
+
+        // Delete object
+        function deleteObject(key) {
+            if (!confirm('Delete object "' + key + '"?')) return;
+            fetch('/object/' + encodeURIComponent(key), { method: 'DELETE' })
+                .then(r => {
+                    if (r.ok || r.status === 204) {
+                        location.reload();
+                    } else {
+                        alert('Failed to delete object');
+                    }
+                }).catch(() => alert('Failed to delete object'));
+        }
+
+        // Close modal on overlay click
+        document.getElementById('movie-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+    </script>
+</body>
+</html>

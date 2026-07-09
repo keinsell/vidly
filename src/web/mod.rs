@@ -7,7 +7,7 @@ use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json},
-    routing::get,
+    routing::{delete, get, put},
 };
 use serde::Deserialize;
 
@@ -34,6 +34,23 @@ struct WatchMovieTemplate {
 #[derive(Template)]
 #[template(path = "movie/upload.html")]
 struct UploadMovieTemplate;
+
+#[derive(Template)]
+#[template(path = "admin/index.html")]
+struct AdminTemplate {
+    movies: Vec<movie::Movie>,
+    objects: Vec<object_store::ObjectMetadata>,
+    movies_json: String,
+    objects_json: String,
+}
+
+#[derive(Deserialize)]
+struct UpdateMoviePayload {
+    title: String,
+    description: String,
+    subtitle: String,
+    thumb: String,
+}
 
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
     let movies = state.movie_repo.list_movies().unwrap_or_default();
@@ -271,6 +288,51 @@ async fn handle_movie_upload_form(
     }
 }
 
+async fn handle_admin_render(State(state): State<ApplicationState>) -> impl IntoResponse {
+    let movies = state.movie_repo.list_movies().unwrap_or_default();
+    let objects = state.object_store.list_objects(None).await.unwrap_or_default();
+    let movies_json = serde_json::to_string(&movies).unwrap_or_default();
+    let objects_json = serde_json::to_string(&objects).unwrap_or_default();
+    let tpl = AdminTemplate { movies, objects, movies_json, objects_json };
+
+    match tpl.render() {
+        | Ok(body) => Html(body).into_response(),
+        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
+    }
+}
+
+async fn handle_delete_movie(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    match state.movie_repo.delete_movie(id) {
+        | Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error deleting movie").into_response(),
+    }
+}
+
+async fn handle_update_movie(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+    axum::Json(payload): axum::Json<UpdateMoviePayload>,
+) -> impl IntoResponse {
+    let mut movie = match state.movie_repo.get_movie(id) {
+        | Ok(Some(m)) => m,
+        | Ok(None) => return (StatusCode::NOT_FOUND, "movie not found").into_response(),
+        | Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "error fetching movie").into_response()
+        }
+    };
+
+    movie.title = payload.title;
+    movie.description = payload.description;
+    movie.subtitle = payload.subtitle;
+    movie.thumb = payload.thumb;
+
+    match state.movie_repo.update_movie(&movie) {
+        | Ok(m) => (StatusCode::OK, Json(m)).into_response(),
+        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error updating movie").into_response(),
+    }
+}
+
 async fn handle_healthcheck() -> &'static str {
     "OK"
 }
@@ -287,7 +349,10 @@ pub fn router(state: ApplicationState) -> Router {
             get(handle_movie_upload_render).post(handle_movie_upload_form),
         )
         .route("/movies/{id}", get(handle_get_movie_render))
+        .route("/movies/{id}", put(handle_update_movie))
+        .route("/movies/{id}", delete(handle_delete_movie))
         .route("/movies", get(handle_query_movies))
+        .route("/admin", get(handle_admin_render))
         .route("/objects", get(handle_query_objects))
         .route(
             "/object/{*path}",
