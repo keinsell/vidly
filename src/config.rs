@@ -30,3 +30,8 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 
 pub static OBJECTS_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| DATA_DIR.join("objects"));
+
+pub static DATABASE_URL: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| DATA_DIR.join("vidly.db").to_string_lossy().to_string())
+});

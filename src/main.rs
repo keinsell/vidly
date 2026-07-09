@@ -1,4 +1,5 @@
 mod config;
+pub mod database;
 
 use std::sync::Arc;
 
@@ -281,111 +282,12 @@ pub mod object_store {
 }
 
 mod movie {
-    #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
-    pub struct Movie {
-        pub id: u32,
-        pub title: String,
-        pub description: String,
-        pub subtitle: String,
-        pub thumb: String,
-        pub sources: Vec<String>,
-    }
+    pub use crate::database::model::movie::{Movie, Sources};
 
-    pub mod repository {
-        use std::sync::Mutex;
-
-        use super::Movie;
-
-        pub trait MovieRepository: Send + Sync {
-            fn get_movie(&self, id: u32) -> Result<Option<Movie>, &'static str>;
-            fn list_movies(&self) -> Result<Vec<Movie>, &'static str>;
-            fn create_movie(&self, movie: Movie) -> Result<Movie, &'static str>;
-        }
-
-        pub struct InMemoryMovieRepository {
-            movies: Mutex<Vec<Movie>>,
-        }
-
-        impl InMemoryMovieRepository {
-            pub fn new() -> Self {
-                Self {
-                    movies: Mutex::new(vec![
-                        Movie {
-                            id: 1,
-                            title: "Big Buck Bunny".to_string(),
-                            description: "Big Buck Bunny tells the story of a giant rabbit with a heart bigger than himself.".to_string(),
-                            subtitle: "By Blender Foundation".to_string(),
-                            thumb: "https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg".to_string(),
-                            sources: vec!["https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4".to_string()],
-                        },
-                        Movie {
-                            id: 2,
-                            title: "Elephants Dream".to_string(),
-                            description: "The first Blender Open Movie from 2006".to_string(),
-                            subtitle: "By Blender Foundation".to_string(),
-                            thumb: "https://upload.wikimedia.org/wikipedia/commons/0/0c/ElephantsDreamPoster.jpg".to_string(),
-                            sources: vec!["https://download.blender.org/ED/elephantsdream-480-h264-st-aac.mov".to_string()],
-                        },
-                        Movie {
-                            id: 3,
-                            title: "Sintel".to_string(),
-                            description: "An independently produced short film by Blender Foundation.".to_string(),
-                            subtitle: "By Blender Foundation".to_string(),
-                            thumb: "https://upload.wikimedia.org/wikipedia/commons/8/8f/Sintel_poster.jpg".to_string(),
-                            sources: vec!["https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4".to_string()],
-                        },
-                        Movie {
-                            id: 4,
-                            title: "Tears of Steel".to_string(),
-                            description: "A crowd-funded sci-fi film realized with Blender.".to_string(),
-                            subtitle: "By Blender Foundation".to_string(),
-                            thumb: "https://upload.wikimedia.org/wikipedia/commons/7/70/Tos-poster.png".to_string(),
-                            sources: vec!["https://download.blender.org/demo/movies/tears-of-steel_teaser.mp4".to_string()],
-                        },
-                    ]),
-                }
-            }
-        }
-
-        impl MovieRepository for InMemoryMovieRepository {
-            fn get_movie(&self, id: u32) -> Result<Option<Movie>, &'static str> {
-                let movies = self.movies.lock().unwrap();
-                Ok(movies.iter().find(|movie| movie.id == id).cloned())
-            }
-
-            fn list_movies(&self) -> Result<Vec<Movie>, &'static str> {
-                let movies = self.movies.lock().unwrap();
-                Ok(movies.clone())
-            }
-
-            fn create_movie(&self, mut movie: Movie) -> Result<Movie, &'static str> {
-                let mut movies = self.movies.lock().unwrap();
-                let max_id = movies.iter().map(|m| m.id).max().unwrap_or(0);
-                movie.id = max_id + 1;
-                movies.push(movie.clone());
-                Ok(movie)
-            }
-        }
-    }
-
-    pub fn get_movie(
-        id: u32,
-        movie_repository: &dyn repository::MovieRepository,
-    ) -> Result<Option<Movie>, &'static str> {
-        movie_repository.get_movie(id)
-    }
-
-    pub fn list_movies(
-        movie_repository: &dyn repository::MovieRepository,
-    ) -> Result<Vec<Movie>, &'static str> {
-        movie_repository.list_movies()
-    }
-
-    pub fn add_movie(
-        movie: Movie,
-        movie_repository: &dyn repository::MovieRepository,
-    ) -> Result<Movie, &'static str> {
-        movie_repository.create_movie(movie)
+    pub trait MovieRepository: Send + Sync {
+        fn get_movie(&self, id: i32) -> Result<Option<Movie>, &'static str>;
+        fn list_movies(&self) -> Result<Vec<Movie>, &'static str>;
+        fn create_movie(&self, movie: Movie) -> Result<Movie, &'static str>;
     }
 
     pub async fn upload_movie(
@@ -396,7 +298,7 @@ mod movie {
         file_name: String,
         thumb_bytes: Vec<u8>,
         thumb_name: String,
-        movie_repository: &dyn repository::MovieRepository,
+        repo: &dyn MovieRepository,
         object_storage: &dyn crate::object_store::ObjectStore,
     ) -> Result<Movie, String> {
         use sha2::Digest;
@@ -434,10 +336,10 @@ mod movie {
             description,
             subtitle,
             thumb,
-            sources: vec![format!("/object/{}", object_key)],
+            sources: Sources(vec![format!("/object/{}", object_key)]),
         };
 
-        let created = movie_repository
+        let created = repo
             .create_movie(movie)
             .map_err(|e| format!("Failed to create movie record: {e}"))?;
 
@@ -448,56 +350,11 @@ mod movie {
 
         Ok(created)
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn get_movie_reads_from_repository() {
-            let repo = repository::InMemoryMovieRepository::new();
-            let movie = get_movie(2, &repo).unwrap().unwrap();
-
-            assert_eq!(movie.id, 2);
-            assert_eq!(movie.title, "Elephants Dream");
-        }
-
-        #[test]
-        fn list_movies_reads_from_repository() {
-            let repo = repository::InMemoryMovieRepository::new();
-            let movies = list_movies(&repo).unwrap();
-
-            assert_eq!(movies.len(), 4);
-            assert_eq!(movies[0].title, "Big Buck Bunny");
-            assert_eq!(movies[3].title, "Tears of Steel");
-        }
-
-        #[test]
-        fn create_movie_adds_to_repository_and_assigns_id() {
-            let repo = repository::InMemoryMovieRepository::new();
-            let movie = Movie {
-                id: 0,
-                title: "Test Movie".to_string(),
-                description: "A test".to_string(),
-                subtitle: "Tester".to_string(),
-                thumb: String::new(),
-                sources: vec!["/object/uploads/test.mp4".to_string()],
-            };
-
-            let created = add_movie(movie, &repo).unwrap();
-            assert_eq!(created.id, 5);
-            assert_eq!(created.title, "Test Movie");
-
-            let all = list_movies(&repo).unwrap();
-            assert_eq!(all.len(), 5);
-            assert_eq!(all[4].id, 5);
-        }
-    }
 }
 
 #[derive(Clone)]
 struct AppState {
-    movie_repository: Arc<dyn movie::repository::MovieRepository>,
+    movie_repo: Arc<dyn movie::MovieRepository>,
     object_store: Arc<dyn object_store::ObjectStore>,
 }
 
@@ -518,7 +375,7 @@ struct WatchTemplate {
 struct UploadTemplate;
 
 async fn index(State(state): State<AppState>) -> impl IntoResponse {
-    let movies = movie::list_movies(state.movie_repository.as_ref()).unwrap_or_default();
+    let movies = state.movie_repo.list_movies().unwrap_or_default();
     let tpl = IndexTemplate { movies };
 
     match tpl.render() {
@@ -527,8 +384,8 @@ async fn index(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-async fn watch_movie(Path(id): Path<u32>, State(state): State<AppState>) -> impl IntoResponse {
-    match movie::get_movie(id, state.movie_repository.as_ref()) {
+async fn watch_movie(Path(id): Path<i32>, State(state): State<AppState>) -> impl IntoResponse {
+    match state.movie_repo.get_movie(id) {
         Ok(Some(movie)) => {
             let tpl = WatchTemplate { movie };
             match tpl.render() {
@@ -543,7 +400,7 @@ async fn watch_movie(Path(id): Path<u32>, State(state): State<AppState>) -> impl
 }
 
 async fn list_movies(State(state): State<AppState>) -> impl IntoResponse {
-    match movie::list_movies(state.movie_repository.as_ref()) {
+    match state.movie_repo.list_movies() {
         Ok(movies) => (StatusCode::OK, serde_json::to_string(&movies).unwrap()).into_response(),
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error listing movies").into_response(),
     }
@@ -752,17 +609,25 @@ async fn fallback() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
-    let movie_repository = Arc::new(movie::repository::InMemoryMovieRepository::new());
-    let object_storage = Arc::new(object_store::InMemoryObjectStore::new());
+    let db = database::create_pool(std::path::Path::new(&*config::DATABASE_URL));
+    database::run_migrations(&db);
+
+    let movie_repo = Arc::new(database::SqliteMovieRepository::new(db));
+    let object_storage = Arc::new(
+        object_store::FileBackedObjectStore::new(
+            object_store::FileBackedObjectStore::default_path(),
+        )
+        .expect("Failed to create object storage"),
+    );
     let app_state = AppState {
-        movie_repository,
+        movie_repo,
         object_store: object_storage,
     };
 
     println!(
-        "WARNING: Application use in-memory implemtation of persistance which may lead to memory leaks under excessive load."
+        "Application started using SQLite database at {}",
+        *config::DATABASE_URL
     );
-    println!("DO NOT USE AT PRODUCTION");
 
     let app = Router::new()
         .route("/", get(index))
@@ -794,15 +659,24 @@ async fn main() {
 mod app_tests {
     use super::*;
 
+    use diesel::r2d2::{self, ConnectionManager};
+    use diesel::sqlite::SqliteConnection;
+
     fn test_state() -> AppState {
+        let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
+        let pool = r2d2::Pool::builder()
+            .max_size(1)
+            .build(manager)
+            .expect("Could not build test database pool");
+        database::run_migrations(&pool);
         AppState {
-            movie_repository: Arc::new(movie::repository::InMemoryMovieRepository::new()),
+            movie_repo: Arc::new(database::SqliteMovieRepository::new(pool)),
             object_store: Arc::new(object_store::InMemoryObjectStore::new()),
         }
     }
 
     #[tokio::test]
-    async fn index_uses_state_repository() {
+    async fn index_uses_state_database() {
         let response = index(State(test_state())).await.into_response();
         assert_eq!(response.status(), StatusCode::OK);
     }
@@ -813,7 +687,7 @@ mod app_tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    fn multipart_body(boundary: &str, include_video: bool) -> Vec<u8> {
+    fn testutil_multipart_body(boundary: &str, include_video: bool) -> Vec<u8> {
         let mut body = format!(
             "\
              --{boundary}\r\n\
@@ -855,7 +729,7 @@ mod app_tests {
     async fn upload_endpoint_accepts_multipart_and_creates_movie() {
         let state = test_state();
         let boundary = "----testboundary";
-        let body = multipart_body(boundary, true);
+        let body = testutil_multipart_body(boundary, true);
 
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -879,7 +753,7 @@ mod app_tests {
             .to_string();
         assert!(location.starts_with("/movies/"));
 
-        let movies = movie::list_movies(state.movie_repository.as_ref()).unwrap();
+        let movies = state.movie_repo.list_movies().unwrap();
         assert_eq!(movies.len(), 5);
         assert_eq!(movies[4].title, "Uploaded Test Movie");
         assert_eq!(movies[4].description, "A test upload");
@@ -890,7 +764,7 @@ mod app_tests {
     async fn upload_endpoint_returns_bad_request_when_no_video() {
         let state = test_state();
         let boundary = "----testboundary";
-        let body = multipart_body(boundary, false);
+        let body = testutil_multipart_body(boundary, false);
 
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -906,7 +780,7 @@ mod app_tests {
 
         assert!(response.status() == StatusCode::BAD_REQUEST);
 
-        let movies = movie::list_movies(state.movie_repository.as_ref()).unwrap();
+        let movies = state.movie_repo.list_movies().unwrap();
         assert_eq!(movies.len(), 4);
     }
 

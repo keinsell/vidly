@@ -1,0 +1,2 @@
+DELETE FROM movies WHERE id IN (1, 2, 3, 4);
+DROP TABLE IF EXISTS movies;
