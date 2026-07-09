@@ -11,8 +11,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::database::schema::movies;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[derive(diesel::deserialize::FromSqlRow, AsExpression)]
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    diesel::deserialize::FromSqlRow,
+    AsExpression,
+)]
 #[diesel(sql_type = Text)]
 pub struct Sources(pub Vec<String>);
 
@@ -44,9 +52,7 @@ impl FromSql<Text, Sqlite> for Sources {
         bytes: <Sqlite as diesel::backend::Backend>::RawValue<'_>,
     ) -> deserialize::Result<Self> {
         let s = <String as FromSql<Text, Sqlite>>::from_sql(bytes)?;
-        serde_json::from_str(&s)
-            .map(Sources)
-            .map_err(Into::into)
+        serde_json::from_str(&s).map(Sources).map_err(Into::into)
     }
 }
 

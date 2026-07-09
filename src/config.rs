@@ -28,8 +28,7 @@ pub static CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .to_path_buf()
 });
 
-pub static OBJECTS_DIR: LazyLock<PathBuf> =
-    LazyLock::new(|| DATA_DIR.join("objects"));
+pub static OBJECTS_DIR: LazyLock<PathBuf> = LazyLock::new(|| DATA_DIR.join("objects"));
 
 pub static DATABASE_URL: LazyLock<String> = LazyLock::new(|| {
     std::env::var("DATABASE_URL")

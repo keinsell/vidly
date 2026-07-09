@@ -5,9 +5,9 @@ use std::path::Path;
 
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
-use diesel::sqlite::SqliteConnection;
 use diesel::sql_types::Integer;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel::sqlite::SqliteConnection;
+use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 
 use crate::database::model::movie::Movie;
 use crate::database::schema::movies;
@@ -80,11 +80,9 @@ impl crate::movie::MovieRepository for SqliteMovieRepository {
             .execute(&mut conn)
             .map_err(|_| "Database error creating movie")?;
 
-        let last_id: i32 = diesel::dsl::select(diesel::dsl::sql::<Integer>(
-            "last_insert_rowid()",
-        ))
-        .get_result(&mut conn)
-        .map_err(|_| "Database error getting last ID")?;
+        let last_id: i32 = diesel::dsl::select(diesel::dsl::sql::<Integer>("last_insert_rowid()"))
+            .get_result(&mut conn)
+            .map_err(|_| "Database error getting last ID")?;
 
         movies::table
             .filter(movies::id.eq(last_id))
