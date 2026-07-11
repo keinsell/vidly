@@ -71,7 +71,6 @@ pub struct Movie {
     pub id: i32,
     pub title: String,
     pub description: String,
-    pub subtitle: String,
     pub thumb: String,
     pub sources: Sources,
 }

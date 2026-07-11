@@ -73,7 +73,6 @@ impl crate::movie::MovieRepository for SqliteMovieRepository {
             .values((
                 movies::title.eq(&movie.title),
                 movies::description.eq(&movie.description),
-                movies::subtitle.eq(&movie.subtitle),
                 movies::thumb.eq(&movie.thumb),
                 movies::sources.eq(&movie.sources),
             ))

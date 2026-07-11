@@ -29,7 +29,6 @@ async fn upload_movie_with_video_and_thumbnail() {
 
     let title = "Test Movie".to_string();
     let description = "A test movie description".to_string();
-    let subtitle = "English".to_string();
     let file_bytes = include_bytes!("fixtures/small.mp4").to_vec();
     let file_name = "small.mp4".to_string();
     let thumb_bytes = include_bytes!("fixtures/small.jpg").to_vec();
@@ -38,7 +37,6 @@ async fn upload_movie_with_video_and_thumbnail() {
     let movie = movie::upload_movie(
         title.clone(),
         description.clone(),
-        subtitle.clone(),
         file_bytes.clone(),
         file_name.clone(),
         thumb_bytes.clone(),
@@ -51,7 +49,6 @@ async fn upload_movie_with_video_and_thumbnail() {
 
     assert_eq!(movie.title, title);
     assert_eq!(movie.description, description);
-    assert_eq!(movie.subtitle, subtitle);
     assert!(movie.id > 0);
     assert!(!movie.sources.0.is_empty());
 
@@ -88,7 +85,6 @@ async fn upload_movie_without_thumbnail() {
     let movie = movie::upload_movie(
         "No Thumb".into(),
         "desc".into(),
-        "sub".into(),
         include_bytes!("fixtures/small.mp4").to_vec(),
         "small.mp4".into(),
         vec![],

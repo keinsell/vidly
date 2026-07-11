@@ -9,7 +9,7 @@ pub trait MovieRepository: Send + Sync {
 }
 
 pub async fn upload_movie(
-    title: String, description: String, subtitle: String, file_bytes: Vec<u8>, file_name: String,
+    title: String, description: String, file_bytes: Vec<u8>, file_name: String,
     thumb_bytes: Vec<u8>, thumb_name: String, repo: &dyn MovieRepository,
     object_storage: &dyn object_store::ObjectStore,
 ) -> Result<Movie, String> {
@@ -46,7 +46,6 @@ pub async fn upload_movie(
         id: 0,
         title,
         description,
-        subtitle,
         thumb,
         sources: Sources(vec![format!("/object/{}", object_key)]),
     };

@@ -3,7 +3,6 @@ diesel::table! {
 		id -> Integer,
 		title -> Text,
 		description -> Text,
-		subtitle -> Text,
 		thumb -> Text,
 		sources -> Text,
 	}

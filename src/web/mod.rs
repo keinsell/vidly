@@ -166,7 +166,6 @@ async fn handle_movie_upload_render() -> impl IntoResponse {
 struct MovieUploadPayload {
     title: String,
     description: String,
-    subtitle: String,
     file_name: String,
     file_bytes: Vec<u8>,
     thumb_name: String,
@@ -195,7 +194,6 @@ impl MovieUploadPayload {
         let mut payload = MovieUploadPayload {
             title: String::new(),
             description: String::new(),
-            subtitle: String::new(),
             file_name: String::new(),
             file_bytes: Vec::new(),
             thumb_name: String::new(),
@@ -213,7 +211,6 @@ impl MovieUploadPayload {
             match name.as_str() {
                 | "title" => payload.title = String::from_utf8_lossy(&data).to_string(),
                 | "description" => payload.description = String::from_utf8_lossy(&data).to_string(),
-                | "subtitle" => payload.subtitle = String::from_utf8_lossy(&data).to_string(),
                 | "video" => {
                     payload.file_name = original_file_name;
                     payload.file_bytes = data.to_vec();
@@ -249,7 +246,6 @@ async fn handle_movie_upload_form(
     match movie::upload_movie(
         payload.title,
         payload.description,
-        payload.subtitle,
         payload.file_bytes,
         payload.file_name,
         payload.thumb_bytes,
@@ -346,15 +342,11 @@ mod tests {
              --{boundary}\r\n\
              Content-Disposition: form-data; name=\"title\"\r\n\
              \r\n\
-             Uploaded Test Movie\r\n\
-             --{boundary}\r\n\
-             Content-Disposition: form-data; name=\"description\"\r\n\
-             \r\n\
-             A test upload\r\n\
-             --{boundary}\r\n\
-             Content-Disposition: form-data; name=\"subtitle\"\r\n\
-             \r\n\
-             Tester\r\n"
+              Uploaded Test Movie\r\n\
+              --{boundary}\r\n\
+              Content-Disposition: form-data; name=\"description\"\r\n\
+              \r\n\
+              A test upload\r\n"
         )
             .into_bytes();
 
