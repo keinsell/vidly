@@ -11,6 +11,7 @@
         .nav-brand { font-weight: 700; color: #f4f4f5; font-size: 1rem; text-decoration: none; display: flex; align-items: center; gap: 8px; padding: 0 20px 0 0; margin-right: 4px; }
         .nav-link { color: #52525b; text-decoration: none; padding: 0 16px; height: 52px; display: flex; align-items: center; font-size: 0.875rem; transition: color 0.15s; }
         .nav-link:hover { color: #f4f4f5; }
+        .nav-link.active { color: #f4f4f5; font-weight: 600; }
         .nav-right { margin-left: auto; }
         .nav-btn { border: 1px solid #3f3f46; color: #f4f4f5; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: border-color 0.15s; }
         .nav-btn:hover { border-color: #f4f4f5; }
@@ -27,6 +28,7 @@
     <nav class="nav">
         <a href="/" class="nav-brand"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3l8 5-8 5V3z"/></svg>Vidly</a>
         <a href="/" class="nav-link">Home</a>
+        <a href="/categories" class="nav-link">Categories</a>
         <div class="nav-right"></div>
         <a href="/upload" class="nav-btn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 1v12M1 7h12"/></svg>Upload</a>
     </nav>

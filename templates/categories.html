@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movies</title>
+    <title>Categories</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #f5f5f5; }
@@ -16,15 +16,14 @@
         .nav-btn { border: 1px solid #3f3f46; color: #f4f4f5; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: border-color 0.15s; }
         .nav-btn:hover { border-color: #f4f4f5; }
         .container { max-width: 100%; margin: 0; padding: 24px 32px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; padding: 0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 0; }
         .card { background: #18181b; border: 1px solid #27272a; border-radius: 10px; overflow: hidden; transition: border-color 0.15s, background 0.15s; }
         .card:hover { border-color: #3f3f46; background: #1c1c1f; }
-        .card-thumb { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; background: #18181b; border-bottom: 1px solid #27272a; }
-        .card-thumb img { width: 100%; height: 100%; display: block; object-fit: cover; }
-        .card-thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #3f3f46; font-size: 2rem; font-weight: 700; font-family: sans-serif; }
-        .card-content { padding: 10px 12px; }
-        .card-title { color: #f4f4f5; text-decoration: none; font-weight: 600; font-size: 0.9rem; line-height: 1.35; display: block; }
+        .card-content { padding: 16px; }
+        .card-title { color: #f4f4f5; text-decoration: none; font-weight: 600; font-size: 1rem; line-height: 1.35; display: block; margin-bottom: 4px; }
         .card-title:hover { color: #a1a1aa; }
+        .card-description { color: #71717a; font-size: 0.85rem; line-height: 1.5; margin: 0; }
+        .card-footer { color: #52525b; font-size: 0.75rem; padding: 12px 16px; border-top: 1px solid #27272a; }
         .empty-state { color: #71717a; padding: 20px 0; }
         .banner { border: 1px solid #27272a; border-left: 3px solid #3f3f46; padding: 10px 16px; margin-bottom: 20px; font-size: 0.85rem; color: #71717a; display: flex; align-items: center; gap: 10px; }
         .banner-icon { color: #52525b; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
@@ -33,32 +32,30 @@
 <body>
     <nav class="nav">
         <a href="/" class="nav-brand"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3l8 5-8 5V3z"/></svg>Vidly</a>
-        <a href="/" class="nav-link active">Home</a>
-        <a href="/categories" class="nav-link">Categories</a>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/categories" class="nav-link active">Categories</a>
         <div class="nav-right"></div>
         <a href="/upload" class="nav-btn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 1v12M1 7h12"/></svg>Upload</a>
     </nav>
 
     <div class="container">
-        <div class="banner">
-            <span class="banner-icon">!</span>
-            <span>Pre-release preview — all data is temporary and may be cleared without notice.</span>
-        </div>
-        {% if movies.is_empty() %}
-            <p class="empty-state">No movies yet.</p>
+
+        {% if tags.is_empty() %}
+            <p class="empty-state">No categories yet.</p>
         {% else %}
             <div class="grid">
-                {% for movie in movies %}
+                {% for tag in tags %}
                 <div class="card">
-                    <div class="card-thumb">
-                        {% if movie.thumb.is_empty() %}
-                        <div class="card-thumb-placeholder">?</div>
-                        {% else %}
-                        <img src="{{ movie.thumb }}" alt="{{ movie.title }}" onerror="this.outerHTML='<div class=card-thumb-placeholder>?</div>'" />
-                        {% endif %}
-                    </div>
                     <div class="card-content">
-                        <a href="/movies/{{ movie.id }}" class="card-title">{{ movie.title }}</a>
+                        <a href="/categories/{{ tag.slug }}" class="card-title">{{ tag.name }}</a>
+                        {% match tag.description %}
+                        {% when Some with (desc) %}
+                            <p class="card-description">{{ desc }}</p>
+                        {% when None %}
+                        {% endmatch %}
+                    </div>
+                    <div class="card-footer">
+                        /{{ tag.slug }}
                     </div>
                 </div>
                 {% endfor %}

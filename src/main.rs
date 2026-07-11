@@ -6,7 +6,7 @@ async fn bootstrap() -> web::ApplicationState {
     let db = database::create_pool(std::path::Path::new(&*config::DATABASE_URL));
     database::run_migrations(&db);
 
-    let movie_repo = Arc::new(database::SqliteMovieRepository::new(db));
+    let movie_repo = Arc::new(database::SqliteMovieRepository::new(db.clone()));
     let object_storage = Arc::new(
         object_store::FileBackedObjectStore::new(
             object_store::FileBackedObjectStore::default_path(),
@@ -16,6 +16,7 @@ async fn bootstrap() -> web::ApplicationState {
 
     web::ApplicationState {
         movie_repo,
+        db,
         object_store: object_storage,
     }
 }

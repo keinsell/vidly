@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS tag_edges;
+DROP TABLE IF EXISTS tags;

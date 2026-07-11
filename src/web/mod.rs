@@ -7,15 +7,17 @@ use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Json},
-    routing::get,
+    routing::{delete, get, put},
 };
+use diesel::sqlite::SqliteConnection;
 use serde::Deserialize;
 
-use crate::{movie, object_store};
+use crate::{database, movie, object_store, tag};
 
 #[derive(Clone)]
 pub struct ApplicationState {
     pub movie_repo: Arc<dyn movie::MovieRepository>,
+    pub db: database::DatabaseConnection,
     pub object_store: Arc<dyn object_store::ObjectStore>,
 }
 
@@ -34,6 +36,21 @@ struct WatchMovieTemplate {
 #[derive(Template)]
 #[template(path = "movie/upload.html")]
 struct UploadMovieTemplate;
+
+#[derive(Template)]
+#[template(path = "categories.html")]
+struct CategoriesTemplate {
+    tags: Vec<tag::Tag>,
+}
+
+#[derive(Template)]
+#[template(path = "category.html")]
+struct CategoryTemplate {
+    tag: tag::Tag,
+    ancestors: Vec<tag::Tag>,
+    children: Vec<tag::Tag>,
+    movies: Vec<movie::Movie>,
+}
 
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
     let movies = state.movie_repo.list_movies().unwrap_or_default();
@@ -163,6 +180,61 @@ async fn handle_movie_upload_render() -> impl IntoResponse {
     }
 }
 
+async fn handle_categories_render(State(state): State<ApplicationState>) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    let tags = tag::list_root_tags(&mut conn).unwrap_or_default();
+    let tpl = CategoriesTemplate { tags };
+
+    match tpl.render() {
+        | Ok(body) => Html(body).into_response(),
+        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
+    }
+}
+
+fn tag_ancestors(conn: &mut SqliteConnection, tag_id: i32) -> Vec<tag::Tag> {
+    let mut path: Vec<tag::Tag> = Vec::new();
+    let mut current = tag_id;
+    while let Ok(parents) = tag::get_parents(conn, current) {
+        match parents.first() {
+            Some(p) => {
+                path.push(p.clone());
+                current = p.id;
+            }
+            None => break,
+        }
+    }
+    path.reverse();
+    path
+}
+
+async fn handle_category_render(
+    Path(slug): Path<String>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    let tag = match tag::get_tag_by_slug(&mut conn, &slug) {
+        Ok(Some(t)) => t,
+        Ok(None) => return (StatusCode::NOT_FOUND, "category not found").into_response(),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    let ancestors = tag_ancestors(&mut conn, tag.id);
+    let children = tag::get_children(&mut conn, tag.id).unwrap_or_default();
+
+    let tpl = CategoryTemplate { tag, ancestors, children, movies: Vec::new() };
+
+    match tpl.render() {
+        Ok(body) => Html(body).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
+    }
+}
+
 struct MovieUploadPayload {
     title: String,
     description: String,
@@ -271,6 +343,102 @@ async fn handle_healthcheck() -> &'static str {
     "OK"
 }
 
+#[derive(Deserialize)]
+struct CreateTagPayload {
+    name: String,
+    slug: Option<String>,
+    description: Option<String>,
+    icon: Option<String>,
+    thumbnail: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct UpdateTagPayload {
+    name: String,
+    slug: Option<String>,
+    description: Option<String>,
+    icon: Option<String>,
+    thumbnail: Option<String>,
+}
+
+async fn handle_list_tags(State(state): State<ApplicationState>) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match tag::list_tags_with_relationships(&mut conn) {
+        Ok(tags) => (StatusCode::OK, Json(tags)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_create_tag(
+    State(state): State<ApplicationState>,
+    Json(payload): Json<CreateTagPayload>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match tag::create_tag(
+        &mut conn,
+        payload.name,
+        payload.slug,
+        payload.description,
+        payload.icon,
+        payload.thumbnail,
+    ) {
+        Ok(tag) => (StatusCode::CREATED, Json(tag)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_get_tag(Path(id): Path<i32>, State(state): State<ApplicationState>) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match tag::get_tag_with_relationships(&mut conn, id) {
+        Ok(Some(tag)) => (StatusCode::OK, Json(tag)).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "tag not found").into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_update_tag(
+    Path(id): Path<i32>,
+    State(state): State<ApplicationState>,
+    Json(payload): Json<UpdateTagPayload>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match tag::update_tag(
+        &mut conn,
+        id,
+        payload.name,
+        payload.slug,
+        payload.description,
+        payload.icon,
+        payload.thumbnail,
+    ) {
+        Ok(tag) => (StatusCode::OK, Json(tag)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_delete_tag(Path(id): Path<i32>, State(state): State<ApplicationState>) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match tag::delete_tag(&mut conn, id) {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
 async fn handle_fallback() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, Html("<h1>404 Not Found</h1>"))
 }
@@ -284,6 +452,15 @@ pub fn router(state: ApplicationState) -> Router {
         )
         .route("/movies/{id}", get(handle_get_movie_render))
         .route("/movies", get(handle_query_movies))
+        .route("/categories", get(handle_categories_render))
+        .route("/categories/{slug}", get(handle_category_render))
+        .route("/tags", get(handle_list_tags).post(handle_create_tag))
+        .route(
+            "/tags/{id}",
+            get(handle_get_tag)
+                .put(handle_update_tag)
+                .delete(handle_delete_tag),
+        )
         .route("/objects", get(handle_query_objects))
         .route(
             "/object/{*path}",
@@ -317,7 +494,8 @@ mod tests {
             .expect("Could not build test database pool");
         crate::database::run_migrations(&pool);
         ApplicationState {
-            movie_repo: Arc::new(crate::database::SqliteMovieRepository::new(pool)),
+            movie_repo: Arc::new(crate::database::SqliteMovieRepository::new(pool.clone())),
+            db: pool,
             object_store: Arc::new(crate::object_store::InMemoryObjectStore::new()),
         }
     }

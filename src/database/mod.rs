@@ -90,3 +90,5 @@ impl crate::movie::MovieRepository for SqliteMovieRepository {
             .map_err(|_| "Database error fetching created movie")
     }
 }
+
+
