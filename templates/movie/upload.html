@@ -3,60 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Movie</title>
+    <title>Upload Movie - Vidly</title>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; font-family: Arial, sans-serif; background: #111; color: #f5f5f5; }
-        .nav { background: #1f2937; padding: 0 20px; display: flex; align-items: center; gap: 0; height: 48px; }
-        .nav-brand { font-weight: 700; color: #fff; font-size: 1.05rem; letter-spacing: 0.02em; padding: 0 20px 0 0; border-right: 1px solid #374151; margin-right: 4px; }
-        .nav-link { color: #94a3b8; text-decoration: none; padding: 0 14px; height: 48px; display: flex; align-items: center; font-size: 0.9rem; transition: color 0.15s; }
-        .nav-link:hover { color: #7dd3fc; }
-        .nav-link.active { color: #7dd3fc; border-bottom: 2px solid #7dd3fc; }
-        .container { max-width: 600px; margin: 0 auto; padding: 24px; }
-        h1 { margin-top: 0; }
-        .form-group { margin-bottom: 16px; }
-        label { display: block; margin-bottom: 4px; color: #cbd5e1; font-size: 0.9rem; }
-        input, textarea { width: 100%; padding: 10px 12px; background: #1f2937; border: 1px solid #374151; border-radius: 6px; color: #f5f5f5; font-size: 1rem; }
+        .nav { padding: 0 32px; display: flex; align-items: center; height: 52px; border-bottom: 1px solid #27272a; }
+        .nav-brand { font-weight: 700; color: #f4f4f5; font-size: 1rem; text-decoration: none; display: flex; align-items: center; gap: 8px; padding: 0 20px 0 0; margin-right: 4px; }
+        .nav-link { color: #52525b; text-decoration: none; padding: 0 16px; height: 52px; display: flex; align-items: center; font-size: 0.875rem; transition: color 0.15s; }
+        .nav-link:hover { color: #f4f4f5; }
+        .nav-link.active { color: #f4f4f5; font-weight: 600; }
+        .nav-right { margin-left: auto; }
+        .nav-btn { border: 1px solid #3f3f46; color: #f4f4f5; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 500; display: flex; align-items: center; gap: 6px; transition: border-color 0.15s; }
+        .nav-btn:hover { border-color: #f4f4f5; }
+        .nav-btn.active { border-color: #f4f4f5; }
+        .container { max-width: 600px; margin: 0 auto; padding: 32px 24px; }
+        .title { font-size: 1.5rem; font-weight: 700; margin: 0 0 24px; }
+        .form-card { background: #18181b; border: 1px solid #27272a; border-radius: 10px; padding: 24px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group:last-of-type { margin-bottom: 0; }
+        label { display: block; margin-bottom: 6px; color: #a1a1aa; font-size: 0.85rem; font-weight: 500; }
+        input[type="text"], textarea { width: 100%; padding: 10px 12px; background: #18181b; border: 1px solid #27272a; border-radius: 6px; color: #f4f4f5; font-size: 0.9rem; outline: none; transition: border-color 0.15s; }
+        input[type="text"]:focus, textarea:focus { border-color: #52525b; }
         textarea { min-height: 100px; resize: vertical; }
-        input[type="file"] { padding: 8px 0; border: none; background: none; }
-        button { background: #7dd3fc; color: #111; border: none; padding: 12px 24px; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; }
-        button:hover { background: #38bdf8; }
-        .hint { color: #94a3b8; font-size: 0.8rem; margin-top: 4px; }
+        input[type="file"] { width: 100%; padding: 10px 12px; background: #18181b; border: 1px solid #27272a; border-radius: 6px; color: #71717a; font-size: 0.85rem; cursor: pointer; transition: border-color 0.15s; }
+        input[type="file"]:hover { border-color: #3f3f46; }
+        input[type="file"]::file-selector-button { background: #27272a; border: none; color: #f4f4f5; padding: 4px 12px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; margin-right: 8px; }
+        .submit-btn { width: 100%; border: 1px solid #3f3f46; background: transparent; color: #f4f4f5; padding: 12px; border-radius: 6px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: border-color 0.15s; }
+        .submit-btn:hover { border-color: #f4f4f5; }
     </style>
 </head>
 <body>
     <nav class="nav">
-        <a href="/" class="nav-brand">Vidly</a>
+        <a href="/" class="nav-brand"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3l8 5-8 5V3z"/></svg>Vidly</a>
         <a href="/" class="nav-link">Home</a>
-        <a href="/upload" class="nav-link active">Upload</a>
+        <div class="nav-right"></div>
+        <a href="/upload" class="nav-btn active"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 1v12M1 7h12"/></svg>Upload</a>
     </nav>
     <div class="container">
-        <h1>Upload Movie</h1>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="title">Title</label>
-                <input type="text" id="title" name="title" placeholder="Movie title" />
-            </div>
-            <div class="form-group">
-                <label for="description">Description</label>
-                <textarea id="description" name="description" placeholder="Movie description"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="subtitle">Subtitle</label>
-                <input type="text" id="subtitle" name="subtitle" placeholder="By ..." />
-            </div>
-            <div class="form-group">
-                <label for="video">Video file</label>
-                <input type="file" id="video" name="video" accept="video/*" required />
-                <div class="hint">Supported formats: MP4, WebM, Ogg</div>
-            </div>
-            <div class="form-group">
-                <label for="thumbnail">Thumbnail (optional)</label>
-                <input type="file" id="thumbnail" name="thumbnail" accept="image/*" />
-                <div class="hint">JPEG, PNG, or WebP</div>
-            </div>
-            <button type="submit">Upload</button>
-        </form>
+        <h1 class="title">Upload Movie</h1>
+        <div class="form-card">
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="video">Video file</label>
+                    <input type="file" id="video" name="video" accept="video/*" required />
+                </div>
+                <div class="form-group">
+                    <label for="title">Title</label>
+                    <input type="text" id="title" name="title" placeholder="Movie title" />
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Movie description"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="subtitle">Subtitle</label>
+                    <input type="text" id="subtitle" name="subtitle" placeholder="By ..." />
+                </div>
+                <div class="form-group">
+                    <label for="thumbnail">Thumbnail</label>
+                    <input type="file" id="thumbnail" name="thumbnail" accept="image/*" />
+                    <div style="color:#52525b;font-size:0.8rem;margin-top:4px;">JPEG, PNG, WebP</div>
+                </div>
+                <button type="submit" class="submit-btn">Upload</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>
