@@ -26,3 +26,13 @@ diesel::table! {
 		parent_id -> Integer,
 	}
 }
+
+diesel::table! {
+	movie_tags (movie_id, tag_id) {
+		movie_id -> Integer,
+		tag_id -> Integer,
+	}
+}
+
+diesel::joinable!(movie_tags -> movies (movie_id));
+diesel::joinable!(movie_tags -> tags (tag_id));

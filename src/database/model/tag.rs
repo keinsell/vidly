@@ -1,7 +1,7 @@
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::database::schema::{tag_edges, tags};
+use crate::database::schema::{movie_tags, tag_edges, tags};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TagRef {
@@ -47,4 +47,14 @@ pub struct NewTag {
 pub struct TagEdge {
 	pub child_id: i32,
 	pub parent_id: i32,
+}
+
+#[derive(Insertable, Clone, Debug, Queryable, Selectable, Associations)]
+#[diesel(table_name = movie_tags)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[diesel(belongs_to(crate::database::model::movie::Movie))]
+#[diesel(belongs_to(Tag))]
+pub struct MovieTag {
+	pub movie_id: i32,
+	pub tag_id: i32,
 }

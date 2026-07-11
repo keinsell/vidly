@@ -4,10 +4,10 @@ use askama::Template;
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Path, Query, State},
+    extract::{DefaultBodyLimit, Form, Path, Query, State},
     http::{HeaderMap, StatusCode},
-    response::{Html, IntoResponse, Json},
-    routing::{delete, get, put},
+    response::{Html, IntoResponse, Json, Redirect},
+    routing::{delete, get, post},
 };
 use diesel::sqlite::SqliteConnection;
 use serde::Deserialize;
@@ -30,6 +30,8 @@ struct IndexTemplate {
 #[template(path = "movie/watch.html")]
 struct WatchMovieTemplate {
     movie: movie::Movie,
+    tags: Vec<tag::Tag>,
+    all_tags_json: String,
 }
 
 #[derive(Template)]
@@ -74,7 +76,9 @@ async fn handle_get_movie_render(
     };
     match movie::get_movie(&mut conn, id) {
         | Ok(Some(movie)) => {
-            let tpl = WatchMovieTemplate { movie };
+            let tags = movie::list_tags_for_movie(&mut conn, id).unwrap_or_default();
+            let all_tags_json = serde_json::to_string(&tag::list_tags(&mut conn).unwrap_or_default()).unwrap_or_default();
+            let tpl = WatchMovieTemplate { movie, tags, all_tags_json };
             match tpl.render() {
                 | Ok(body) => Html(body).into_response(),
                 | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
@@ -237,8 +241,9 @@ async fn handle_category_render(
 
     let ancestors = tag_ancestors(&mut conn, tag.id);
     let children = tag::get_children(&mut conn, tag.id).unwrap_or_default();
+    let movies = movie::list_movies_for_tag(&mut conn, tag.id).unwrap_or_default();
 
-    let tpl = CategoryTemplate { tag, ancestors, children, movies: Vec::new() };
+    let tpl = CategoryTemplate { tag, ancestors, children, movies };
 
     match tpl.render() {
         Ok(body) => Html(body).into_response(),
@@ -455,6 +460,72 @@ async fn handle_delete_tag(Path(id): Path<i32>, State(state): State<ApplicationS
     }
 }
 
+#[derive(Deserialize)]
+struct AddMovieTagPayload {
+    tag_id: i32,
+}
+
+async fn handle_add_movie_tag(
+    Path(movie_id): Path<i32>,
+    State(state): State<ApplicationState>,
+    Json(payload): Json<AddMovieTagPayload>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::add_tag_to_movie(&mut conn, movie_id, payload.tag_id) {
+        Ok(_) => StatusCode::CREATED.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_remove_movie_tag(
+    Path((movie_id, tag_id)): Path<(i32, i32)>,
+    State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::remove_tag_from_movie(&mut conn, movie_id, tag_id) {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+async fn handle_add_tag_form(
+    Path(movie_id): Path<i32>,
+    State(state): State<ApplicationState>,
+    Form(payload): Form<AddMovieTagPayload>,
+) -> impl IntoResponse {
+    if payload.tag_id <= 0 {
+        return Redirect::to(&format!("/movies/{movie_id}")).into_response();
+    }
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    if let Err(e) = movie::add_tag_to_movie(&mut conn, movie_id, payload.tag_id) {
+        eprintln!("Add tag error: {e}");
+    }
+    Redirect::to(&format!("/movies/{movie_id}")).into_response()
+}
+
+async fn handle_remove_tag_form(
+    Path((movie_id, tag_id)): Path<(i32, i32)>,
+    State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    if let Err(e) = movie::remove_tag_from_movie(&mut conn, movie_id, tag_id) {
+        eprintln!("Remove tag error: {e}");
+    }
+    Redirect::to(&format!("/movies/{movie_id}")).into_response()
+}
+
 async fn handle_fallback() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, Html("<h1>404 Not Found</h1>"))
 }
@@ -477,6 +548,10 @@ pub fn router(state: ApplicationState) -> Router {
                 .put(handle_update_tag)
                 .delete(handle_delete_tag),
         )
+        .route("/movies/{id}/tags", post(handle_add_movie_tag))
+        .route("/movies/{id}/tags/{tag_id}", delete(handle_remove_movie_tag))
+        .route("/movies/{id}/tags/add", post(handle_add_tag_form))
+        .route("/movies/{id}/tags/{tag_id}/remove", post(handle_remove_tag_form))
         .route("/objects", get(handle_query_objects))
         .route(
             "/object/{*path}",

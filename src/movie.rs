@@ -2,8 +2,10 @@ use diesel::prelude::*;
 use diesel::sql_types::Integer;
 use diesel::sqlite::SqliteConnection;
 
-use crate::database::schema::movies;
+use crate::database::model::MovieTag;
+use crate::database::schema::{movie_tags, movies, tags};
 use crate::object_store;
+use crate::tag;
 
 pub use crate::database::model::movie::{Movie, Sources};
 
@@ -96,4 +98,116 @@ pub async fn upload_movie(
     );
 
     Ok(created)
+}
+
+pub fn add_tag_to_movie(
+    conn: &mut SqliteConnection, movie_id: i32, tag_id: i32,
+) -> Result<(), &'static str> {
+    let tag_exists = tags::table
+        .filter(tags::id.eq(tag_id).and(tags::deleted_at.is_null()))
+        .select(tags::id)
+        .first::<i32>(conn)
+        .optional()
+        .map_err(|_| "Database error checking tag existence")?;
+
+    if tag_exists.is_none() {
+        return Err("Tag does not exist");
+    }
+
+    let link = MovieTag { movie_id, tag_id };
+
+    diesel::insert_into(movie_tags::table)
+        .values(&link)
+        .execute(conn)
+        .map_err(|_| "Database error adding tag to movie")?;
+
+    let movie_title = get_movie(conn, movie_id)
+        .ok()
+        .flatten()
+        .map(|m| m.title)
+        .unwrap_or_default();
+    let tag_name = tag::get_tag(conn, tag_id)
+        .ok()
+        .flatten()
+        .map(|t| t.name)
+        .unwrap_or_default();
+
+    println!(
+        "MovieTagAdded: movie_id={} title=\"{}\" tag_id={} tag=\"{}\"",
+        movie_id, movie_title, tag_id, tag_name,
+    );
+
+    Ok(())
+}
+
+pub fn remove_tag_from_movie(
+    conn: &mut SqliteConnection, movie_id: i32, tag_id: i32,
+) -> Result<(), &'static str> {
+    diesel::delete(
+        movie_tags::table.filter(
+            movie_tags::movie_id
+                .eq(movie_id)
+                .and(movie_tags::tag_id.eq(tag_id)),
+        ),
+    )
+    .execute(conn)
+    .map_err(|_| "Database error removing tag from movie")?;
+
+    let movie_title = get_movie(conn, movie_id)
+        .ok()
+        .flatten()
+        .map(|m| m.title)
+        .unwrap_or_default();
+    let tag_name = tag::get_tag(conn, tag_id)
+        .ok()
+        .flatten()
+        .map(|t| t.name)
+        .unwrap_or_default();
+
+    println!(
+        "MovieTagRemoved: movie_id={} title=\"{}\" tag_id={} tag=\"{}\"",
+        movie_id, movie_title, tag_id, tag_name,
+    );
+
+    Ok(())
+}
+
+pub fn list_tags_for_movie(
+    conn: &mut SqliteConnection, movie_id: i32,
+) -> Result<Vec<tag::Tag>, &'static str> {
+    let tag_ids: Vec<i32> = movie_tags::table
+        .filter(movie_tags::movie_id.eq(movie_id))
+        .select(movie_tags::tag_id)
+        .load(conn)
+        .map_err(|_| "Database error fetching tag IDs for movie")?;
+
+    if tag_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    tags::table
+        .filter(tags::id.eq_any(tag_ids).and(tags::deleted_at.is_null()))
+        .select(tag::Tag::as_select())
+        .load::<tag::Tag>(conn)
+        .map_err(|_| "Database error fetching tags for movie")
+}
+
+pub fn list_movies_for_tag(
+    conn: &mut SqliteConnection, tag_id: i32,
+) -> Result<Vec<Movie>, &'static str> {
+    let movie_ids: Vec<i32> = movie_tags::table
+        .filter(movie_tags::tag_id.eq(tag_id))
+        .select(movie_tags::movie_id)
+        .load(conn)
+        .map_err(|_| "Database error fetching movie IDs for tag")?;
+
+    if movie_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    movies::table
+        .filter(movies::id.eq_any(movie_ids))
+        .select(Movie::as_select())
+        .load::<Movie>(conn)
+        .map_err(|_| "Database error fetching movies for tag")
 }
