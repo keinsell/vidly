@@ -1,16 +1,53 @@
+use diesel::prelude::*;
+use diesel::sql_types::Integer;
+use diesel::sqlite::SqliteConnection;
+
+use crate::database::schema::movies;
 use crate::object_store;
 
 pub use crate::database::model::movie::{Movie, Sources};
 
-pub trait MovieRepository: Send + Sync {
-    fn get_movie(&self, id: i32) -> Result<Option<Movie>, &'static str>;
-    fn list_movies(&self) -> Result<Vec<Movie>, &'static str>;
-    fn create_movie(&self, movie: Movie) -> Result<Movie, &'static str>;
+pub fn get_movie(conn: &mut SqliteConnection, id: i32) -> Result<Option<Movie>, &'static str> {
+    movies::table
+        .filter(movies::id.eq(id))
+        .select(Movie::as_select())
+        .first::<Movie>(conn)
+        .optional()
+        .map_err(|_| "Database error fetching movie")
+}
+
+pub fn list_movies(conn: &mut SqliteConnection) -> Result<Vec<Movie>, &'static str> {
+    movies::table
+        .select(Movie::as_select())
+        .load::<Movie>(conn)
+        .map_err(|_| "Database error listing movies")
+}
+
+pub fn create_movie(conn: &mut SqliteConnection, movie: Movie) -> Result<Movie, &'static str> {
+    diesel::insert_into(movies::table)
+        .values((
+            movies::title.eq(&movie.title),
+            movies::description.eq(&movie.description),
+            movies::thumb.eq(&movie.thumb),
+            movies::sources.eq(&movie.sources),
+        ))
+        .execute(conn)
+        .map_err(|_| "Database error creating movie")?;
+
+    let last_id: i32 = diesel::dsl::select(diesel::dsl::sql::<Integer>("last_insert_rowid()"))
+        .get_result(conn)
+        .map_err(|_| "Database error getting last ID")?;
+
+    movies::table
+        .filter(movies::id.eq(last_id))
+        .select(Movie::as_select())
+        .first::<Movie>(conn)
+        .map_err(|_| "Database error fetching created movie")
 }
 
 pub async fn upload_movie(
     title: String, description: String, file_bytes: Vec<u8>, file_name: String,
-    thumb_bytes: Vec<u8>, thumb_name: String, repo: &dyn MovieRepository,
+    thumb_bytes: Vec<u8>, thumb_name: String, conn: &mut SqliteConnection,
     object_storage: &dyn object_store::ObjectStore,
 ) -> Result<Movie, String> {
     use sha2::Digest;
@@ -50,8 +87,7 @@ pub async fn upload_movie(
         sources: Sources(vec![format!("/object/{}", object_key)]),
     };
 
-    let created = repo
-        .create_movie(movie)
+    let created = create_movie(conn, movie)
         .map_err(|e| format!("Failed to create movie record: {e}"))?;
 
     println!(

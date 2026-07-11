@@ -16,7 +16,6 @@ use crate::{database, movie, object_store, tag};
 
 #[derive(Clone)]
 pub struct ApplicationState {
-    pub movie_repo: Arc<dyn movie::MovieRepository>,
     pub db: database::DatabaseConnection,
     pub object_store: Arc<dyn object_store::ObjectStore>,
 }
@@ -53,7 +52,11 @@ struct CategoryTemplate {
 }
 
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
-    let movies = state.movie_repo.list_movies().unwrap_or_default();
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    let movies = movie::list_movies(&mut conn).unwrap_or_default();
     let tpl = IndexTemplate { movies };
 
     match tpl.render() {
@@ -65,7 +68,11 @@ async fn handle_index_render(State(state): State<ApplicationState>) -> impl Into
 async fn handle_get_movie_render(
     Path(id): Path<i32>, State(state): State<ApplicationState>,
 ) -> impl IntoResponse {
-    match state.movie_repo.get_movie(id) {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::get_movie(&mut conn, id) {
         | Ok(Some(movie)) => {
             let tpl = WatchMovieTemplate { movie };
             match tpl.render() {
@@ -80,7 +87,11 @@ async fn handle_get_movie_render(
 }
 
 async fn handle_query_movies(State(state): State<ApplicationState>) -> impl IntoResponse {
-    match state.movie_repo.list_movies() {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::list_movies(&mut conn) {
         | Ok(movies) => (StatusCode::OK, serde_json::to_string(&movies).unwrap()).into_response(),
         | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error listing movies").into_response(),
     }
@@ -315,6 +326,11 @@ async fn handle_movie_upload_form(
         | Err((code, msg)) => return (code, msg).into_response(),
     };
 
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
     match movie::upload_movie(
         payload.title,
         payload.description,
@@ -322,7 +338,7 @@ async fn handle_movie_upload_form(
         payload.file_name,
         payload.thumb_bytes,
         payload.thumb_name,
-        state.movie_repo.as_ref(),
+        &mut conn,
         state.object_store.as_ref(),
     )
         .await
@@ -494,7 +510,6 @@ mod tests {
             .expect("Could not build test database pool");
         crate::database::run_migrations(&pool);
         ApplicationState {
-            movie_repo: Arc::new(crate::database::SqliteMovieRepository::new(pool.clone())),
             db: pool,
             object_store: Arc::new(crate::object_store::InMemoryObjectStore::new()),
         }
@@ -576,7 +591,8 @@ mod tests {
             .to_string();
         assert!(location.starts_with("/movies/"));
 
-        let movies = state.movie_repo.list_movies().unwrap();
+        let mut conn = state.db.get().unwrap();
+        let movies = movie::list_movies(&mut conn).unwrap();
         assert_eq!(movies.len(), 5);
         assert_eq!(movies[4].title, "Uploaded Test Movie");
         assert_eq!(movies[4].description, "A test upload");
@@ -603,7 +619,8 @@ mod tests {
 
         assert!(response.status() == StatusCode::BAD_REQUEST);
 
-        let movies = state.movie_repo.list_movies().unwrap();
+        let mut conn = state.db.get().unwrap();
+        let movies = movie::list_movies(&mut conn).unwrap();
         assert_eq!(movies.len(), 4);
     }
 

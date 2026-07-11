@@ -1,21 +1,19 @@
+use vidly::database;
 use vidly::movie;
-use vidly::movie::MovieRepository;
 use vidly::object_store::ObjectStore;
-use vidly::database::SqliteMovieRepository;
 
 use diesel::r2d2::{self, ConnectionManager};
 use diesel::sqlite::SqliteConnection;
 use sha2::Digest;
 
-fn repo() -> SqliteMovieRepository {
+fn pool() -> database::DatabaseConnection {
     let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
-
     let pool = r2d2::Pool::builder()
-        .max_size(1)
+        .max_size(2)
         .build(manager)
         .expect("Could not build test database pool");
-    vidly::database::run_migrations(&pool);
-    SqliteMovieRepository::new(pool)
+    database::run_migrations(&pool);
+    pool
 }
 
 fn store() -> vidly::object_store::InMemoryObjectStore {
@@ -24,7 +22,7 @@ fn store() -> vidly::object_store::InMemoryObjectStore {
 
 #[tokio::test]
 async fn upload_movie_with_video_and_thumbnail() {
-    let repo = repo();
+    let pool = pool();
     let store = store();
 
     let title = "Test Movie".to_string();
@@ -34,6 +32,7 @@ async fn upload_movie_with_video_and_thumbnail() {
     let thumb_bytes = include_bytes!("fixtures/small.jpg").to_vec();
     let thumb_name = "small.jpg".to_string();
 
+    let mut conn = pool.get().expect("Could not get connection");
     let movie = movie::upload_movie(
         title.clone(),
         description.clone(),
@@ -41,7 +40,7 @@ async fn upload_movie_with_video_and_thumbnail() {
         file_name.clone(),
         thumb_bytes.clone(),
         thumb_name.clone(),
-        &repo,
+        &mut conn,
         &store,
     )
     .await
@@ -72,16 +71,17 @@ async fn upload_movie_with_video_and_thumbnail() {
     assert_eq!(stored_thumb, thumb_bytes);
     assert_eq!(movie.thumb, format!("/object/{}", thumb_key));
 
-    let movies = repo.list_movies().expect("should list movies");
+    let movies = movie::list_movies(&mut conn).expect("should list movies");
     assert_eq!(movies.len(), 5);
     assert_eq!(movies[4].title, title);
 }
 
 #[tokio::test]
 async fn upload_movie_without_thumbnail() {
-    let repo = repo();
+    let pool = pool();
     let store = store();
 
+    let mut conn = pool.get().expect("Could not get connection");
     let movie = movie::upload_movie(
         "No Thumb".into(),
         "desc".into(),
@@ -89,7 +89,7 @@ async fn upload_movie_without_thumbnail() {
         "small.mp4".into(),
         vec![],
         String::new(),
-        &repo,
+        &mut conn,
         &store,
     )
     .await
