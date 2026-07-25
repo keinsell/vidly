@@ -73,4 +73,6 @@ pub struct Movie {
     pub description: String,
     pub thumb: String,
     pub sources: Sources,
+    pub created_at: String,
+    pub updated_at: String,
 }

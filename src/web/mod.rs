@@ -37,6 +37,12 @@ struct WatchMovieTemplate {
 #[template(path = "movie/upload.html")]
 struct UploadMovieTemplate;
 
+#[derive(Template)]
+#[template(path = "movie/edit.html")]
+struct EditMovieTemplate {
+    movie: movie::Movie,
+}
+
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
     let mut conn = match state.db.get() {
         Ok(c) => c,
@@ -82,6 +88,32 @@ async fn handle_query_movies(State(state): State<ApplicationState>) -> impl Into
     match movie::list_movies(&mut conn) {
         | Ok(movies) => (StatusCode::OK, serde_json::to_string(&movies).unwrap()).into_response(),
         | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "error listing movies").into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+struct UpdateMoviePayload {
+    title: String,
+    description: String,
+    thumb: String,
+}
+
+async fn handle_update_movie(
+    Path(id): Path<i32>,
+    State(state): State<ApplicationState>,
+    Json(payload): Json<UpdateMoviePayload>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    match movie::update_movie(&mut conn, id, payload.title, payload.description, payload.thumb) {
+        Ok(movie) => (StatusCode::OK, Json(movie)).into_response(),
+        Err(e) => {
+            eprintln!("Update movie error: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e).into_response()
+        }
     }
 }
 
@@ -248,6 +280,136 @@ impl MovieUploadPayload {
         }
 
         Ok(payload)
+    }
+}
+
+struct MovieEditPayload {
+    title: String,
+    description: String,
+    thumb_bytes: Vec<u8>,
+    thumb_name: String,
+}
+
+impl MovieEditPayload {
+    async fn from_multipart(
+        headers: &HeaderMap, body: Bytes,
+    ) -> Result<Self, (StatusCode, &'static str)> {
+        let boundary = multer::parse_boundary(
+            headers
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or(""),
+        )
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid multipart Content-Type"))?;
+
+        let constraints = multer::Constraints::new()
+            .size_limit(multer::SizeLimit::new().per_field(500 * 1024 * 1024));
+
+        use futures_util::stream;
+        let stream = stream::once(async { Ok::<_, multer::Error>(body) });
+        let mut multipart = multer::Multipart::with_constraints(stream, &boundary, constraints);
+
+        let mut payload = MovieEditPayload {
+            title: String::new(),
+            description: String::new(),
+            thumb_bytes: Vec::new(),
+            thumb_name: String::new(),
+        };
+
+        while let Ok(Some(field)) = multipart.next_field().await {
+            let name = field.name().unwrap_or("").to_string();
+            let original_file_name = field.file_name().unwrap_or("").to_string();
+            let data = field
+                .bytes()
+                .await
+                .map_err(|_| (StatusCode::BAD_REQUEST, "Failed to read upload field"))?;
+
+            match name.as_str() {
+                | "title" => payload.title = String::from_utf8_lossy(&data).to_string(),
+                | "description" => payload.description = String::from_utf8_lossy(&data).to_string(),
+                | "thumbnail" => {
+                    payload.thumb_name = original_file_name;
+                    payload.thumb_bytes = data.to_vec();
+                }
+                | _ => {}
+            }
+        }
+
+        Ok(payload)
+    }
+}
+
+async fn handle_movie_edit_render(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::get_movie(&mut conn, id) {
+        Ok(Some(movie)) => {
+            let tpl = EditMovieTemplate { movie };
+            match tpl.render() {
+                Ok(body) => Html(body).into_response(),
+                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
+            }
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Html("<h1>404 Not Found</h1>")).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    }
+}
+
+async fn handle_movie_edit_form(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+    headers: HeaderMap, body: Bytes,
+) -> impl IntoResponse {
+    let payload = match MovieEditPayload::from_multipart(&headers, body).await {
+        Ok(p) => p,
+        Err((code, msg)) => return (code, msg).into_response(),
+    };
+
+    if payload.title.is_empty() {
+        return (StatusCode::BAD_REQUEST, "Title is required").into_response();
+    }
+
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    let existing = match movie::get_movie(&mut conn, id) {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, "Movie not found").into_response(),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    let thumb = if payload.thumb_bytes.is_empty() {
+        existing.thumb.clone()
+    } else {
+        use sha2::Digest;
+        let thumb_hash = hex::encode(sha2::Sha256::digest(&payload.thumb_bytes));
+        let thumb_ext = std::path::Path::new(&payload.thumb_name)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("jpg");
+        let thumb_key = format!("thumbnails/{}.{}", thumb_hash, thumb_ext);
+        if let Err(e) = state.object_store.put_bytes(&thumb_key, payload.thumb_bytes).await {
+            eprintln!("Edit warning: failed to store thumbnail '{thumb_key}': {e}");
+            existing.thumb.clone()
+        } else {
+            format!("/object/{}", thumb_key)
+        }
+    };
+
+    match movie::update_movie(&mut conn, id, payload.title, payload.description, thumb) {
+        Ok(_) => (
+            StatusCode::SEE_OTHER,
+            [("Location", format!("/movies/{}", id))],
+        ).into_response(),
+        Err(e) => {
+            eprintln!("Edit error: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, e).into_response()
+        }
     }
 }
 
@@ -465,7 +627,14 @@ pub fn router(state: ApplicationState) -> Router {
             "/upload",
             get(handle_movie_upload_render).post(handle_movie_upload_form),
         )
-        .route("/movies/{id}", get(handle_get_movie_render))
+        .route(
+            "/movies/{id}/edit",
+            get(handle_movie_edit_render).post(handle_movie_edit_form),
+        )
+        .route(
+            "/movies/{id}",
+            get(handle_get_movie_render).put(handle_update_movie),
+        )
         .route("/movies", get(handle_query_movies))
         .route("/tags", get(handle_list_tags).post(handle_create_tag))
         .route(

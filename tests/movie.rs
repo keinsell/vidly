@@ -170,4 +170,39 @@ fn list_tags_for_movie_empty_when_no_tags() {
     assert!(tags.is_empty(), "Non-existent movie should have no tags");
 }
 
+#[test]
+fn update_movie_updates_a_movie() {
+    let pool = pool();
+    let mut conn = pool.get().expect("Could not get connection");
+
+    let original = movie::get_movie(&mut conn, 1)
+        .expect("should fetch movie")
+        .expect("movie should exist");
+    let original_sources = original.sources.0.clone();
+
+    let result = movie::update_movie(
+        &mut conn, 999, "Title".into(), "Desc".into(), String::new(),
+    );
+    assert!(result.is_err(), "Updating non-existent movie should fail");
+
+    let updated = movie::update_movie(
+        &mut conn, 1, "New Title".into(), "New description".into(), "/object/thumbnails/new.jpg".into(),
+    )
+        .expect("update_movie should succeed");
+
+    assert_eq!(updated.id, 1);
+    assert_eq!(updated.title, "New Title");
+    assert_eq!(updated.description, "New description");
+    assert_eq!(updated.thumb, "/object/thumbnails/new.jpg");
+    assert!(!updated.updated_at.is_empty());
+    assert_eq!(updated.sources.0, original_sources, "Sources should not change on metadata update");
+
+    let fetched = movie::get_movie(&mut conn, 1)
+        .expect("should fetch movie")
+        .expect("movie should exist");
+    assert_eq!(fetched.title, "New Title");
+    assert_eq!(fetched.description, "New description");
+    assert_eq!(fetched.thumb, "/object/thumbnails/new.jpg");
+}
+
 

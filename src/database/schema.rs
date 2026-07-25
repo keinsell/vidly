@@ -5,6 +5,8 @@ diesel::table! {
 		description -> Text,
 		thumb -> Text,
 		sources -> Text,
+		created_at -> Text,
+		updated_at -> Text,
 	}
 }
 

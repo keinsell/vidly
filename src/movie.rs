@@ -32,6 +32,8 @@ pub fn create_movie(conn: &mut SqliteConnection, movie: Movie) -> Result<Movie, 
             movies::description.eq(&movie.description),
             movies::thumb.eq(&movie.thumb),
             movies::sources.eq(&movie.sources),
+            movies::created_at.eq(&movie.created_at),
+            movies::updated_at.eq(&movie.updated_at),
         ))
         .execute(conn)
         .map_err(|_| "Database error creating movie")?;
@@ -47,13 +49,48 @@ pub fn create_movie(conn: &mut SqliteConnection, movie: Movie) -> Result<Movie, 
         .map_err(|_| "Database error fetching created movie")
 }
 
+pub fn update_movie(
+    conn: &mut SqliteConnection,
+    id: i32,
+    title: String,
+    description: String,
+    thumb: String,
+) -> Result<Movie, &'static str> {
+    let now = chrono::Utc::now().to_rfc3339();
+
+    diesel::update(movies::table.filter(movies::id.eq(id)))
+        .set((
+            movies::title.eq(&title),
+            movies::description.eq(&description),
+            movies::thumb.eq(&thumb),
+            movies::updated_at.eq(&now),
+        ))
+        .execute(conn)
+        .map_err(|_| "Database error updating movie")?;
+
+    let movie = movies::table
+        .filter(movies::id.eq(id))
+        .select(Movie::as_select())
+        .first::<Movie>(conn)
+        .map_err(|_| "Database error fetching updated movie")?;
+
+    println!(
+        "MovieUpdated: id={} title=\"{}\" thumb=\"{}\"",
+        movie.id, movie.title, movie.thumb,
+    );
+
+    Ok(movie)
+}
+
 pub async fn upload_movie(
     title: String, description: String, file_bytes: Vec<u8>, file_name: String,
     thumb_bytes: Vec<u8>, thumb_name: String, conn: &mut SqliteConnection,
     object_storage: &dyn object_store::ObjectStore,
 ) -> Result<Movie, String> {
+    use chrono::Utc;
     use sha2::Digest;
 
+    let now = Utc::now().to_rfc3339();
     let video_hash = hex::encode(sha2::Sha256::digest(&file_bytes));
     let video_ext = std::path::Path::new(&file_name)
         .extension()
@@ -87,6 +124,8 @@ pub async fn upload_movie(
         description,
         thumb,
         sources: Sources(vec![format!("/object/{}", object_key)]),
+        created_at: now.clone(),
+        updated_at: now,
     };
 
     let created = create_movie(conn, movie)

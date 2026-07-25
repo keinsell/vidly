@@ -44,7 +44,10 @@
         <a href="/upload" class="nav-btn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 1v12M1 7h12"/></svg>Upload</a>
     </nav>
     <div class="container">
-        <h1 class="title">{{ movie.title }}</h1>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;">
+            <h1 class="title" style="margin:0;">{{ movie.title }}</h1>
+            <a href="/movies/{{ movie.id }}/edit" style="flex-shrink:0;border:1px solid #27272a;color:#71717a;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:0.8rem;font-weight:500;display:flex;align-items:center;gap:6px;">Edit</a>
+        </div>
         <p class="description">{{ movie.description }}</p>
         <div class="tags">
             {% for tag in tags %}
