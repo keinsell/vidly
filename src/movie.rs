@@ -192,22 +192,4 @@ pub fn list_tags_for_movie(
         .map_err(|_| "Database error fetching tags for movie")
 }
 
-pub fn list_movies_for_tag(
-    conn: &mut SqliteConnection, tag_id: i32,
-) -> Result<Vec<Movie>, &'static str> {
-    let movie_ids: Vec<i32> = movie_tags::table
-        .filter(movie_tags::tag_id.eq(tag_id))
-        .select(movie_tags::movie_id)
-        .load(conn)
-        .map_err(|_| "Database error fetching movie IDs for tag")?;
 
-    if movie_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    movies::table
-        .filter(movies::id.eq_any(movie_ids))
-        .select(Movie::as_select())
-        .load::<Movie>(conn)
-        .map_err(|_| "Database error fetching movies for tag")
-}

@@ -72,27 +72,6 @@ pub fn list_tags(conn: &mut SqliteConnection) -> Result<Vec<Tag>, &'static str> 
         .map_err(|_| "Database error listing tags")
 }
 
-pub fn list_root_tags(conn: &mut SqliteConnection) -> Result<Vec<Tag>, &'static str> {
-    let child_ids: Vec<i32> = tag_edges::table
-        .select(tag_edges::child_id)
-        .load(conn)
-        .map_err(|_| "Database error fetching child tag IDs")?;
-
-    let mut root_ids: Vec<i32> = tags::table
-        .filter(tags::deleted_at.is_null())
-        .select(tags::id)
-        .load(conn)
-        .map_err(|_| "Database error fetching all tag IDs")?;
-
-    root_ids.retain(|id| !child_ids.contains(id));
-
-    tags::table
-        .filter(tags::id.eq_any(root_ids))
-        .select(Tag::as_select())
-        .load::<Tag>(conn)
-        .map_err(|_| "Database error listing root tags")
-}
-
 pub fn update_tag(
     conn: &mut SqliteConnection,
     id: i32,
@@ -162,46 +141,6 @@ pub fn remove_parent(
     .map_err(|_| "Database error unlinking tag parent")?;
 
     Ok(())
-}
-
-pub fn get_parents(
-    conn: &mut SqliteConnection, tag_id: i32,
-) -> Result<Vec<Tag>, &'static str> {
-    let parent_ids: Vec<i32> = tag_edges::table
-        .filter(tag_edges::child_id.eq(tag_id))
-        .select(tag_edges::parent_id)
-        .load(conn)
-        .map_err(|_| "Database error fetching tag parents")?;
-
-    if parent_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    tags::table
-        .filter(tags::id.eq_any(parent_ids).and(tags::deleted_at.is_null()))
-        .select(Tag::as_select())
-        .load::<Tag>(conn)
-        .map_err(|_| "Database error fetching tag parents")
-}
-
-pub fn get_children(
-    conn: &mut SqliteConnection, tag_id: i32,
-) -> Result<Vec<Tag>, &'static str> {
-    let child_ids: Vec<i32> = tag_edges::table
-        .filter(tag_edges::parent_id.eq(tag_id))
-        .select(tag_edges::child_id)
-        .load(conn)
-        .map_err(|_| "Database error fetching tag children")?;
-
-    if child_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    tags::table
-        .filter(tags::id.eq_any(child_ids).and(tags::deleted_at.is_null()))
-        .select(Tag::as_select())
-        .load::<Tag>(conn)
-        .map_err(|_| "Database error fetching tag children")
 }
 
 pub fn list_tags_with_relationships(

@@ -9,7 +9,6 @@ use axum::{
     response::{Html, IntoResponse, Json, Redirect},
     routing::{delete, get, post},
 };
-use diesel::sqlite::SqliteConnection;
 use serde::Deserialize;
 
 use crate::{database, movie, object_store, tag};
@@ -37,21 +36,6 @@ struct WatchMovieTemplate {
 #[derive(Template)]
 #[template(path = "movie/upload.html")]
 struct UploadMovieTemplate;
-
-#[derive(Template)]
-#[template(path = "categories.html")]
-struct CategoriesTemplate {
-    tags: Vec<tag::Tag>,
-}
-
-#[derive(Template)]
-#[template(path = "category.html")]
-struct CategoryTemplate {
-    tag: tag::Tag,
-    ancestors: Vec<tag::Tag>,
-    children: Vec<tag::Tag>,
-    movies: Vec<movie::Movie>,
-}
 
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
     let mut conn = match state.db.get() {
@@ -192,62 +176,6 @@ async fn handle_movie_upload_render() -> impl IntoResponse {
     match UploadMovieTemplate.render() {
         | Ok(body) => Html(body).into_response(),
         | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
-    }
-}
-
-async fn handle_categories_render(State(state): State<ApplicationState>) -> impl IntoResponse {
-    let mut conn = match state.db.get() {
-        Ok(c) => c,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
-    };
-    let tags = tag::list_root_tags(&mut conn).unwrap_or_default();
-    let tpl = CategoriesTemplate { tags };
-
-    match tpl.render() {
-        | Ok(body) => Html(body).into_response(),
-        | Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
-    }
-}
-
-fn tag_ancestors(conn: &mut SqliteConnection, tag_id: i32) -> Vec<tag::Tag> {
-    let mut path: Vec<tag::Tag> = Vec::new();
-    let mut current = tag_id;
-    while let Ok(parents) = tag::get_parents(conn, current) {
-        match parents.first() {
-            Some(p) => {
-                path.push(p.clone());
-                current = p.id;
-            }
-            None => break,
-        }
-    }
-    path.reverse();
-    path
-}
-
-async fn handle_category_render(
-    Path(slug): Path<String>, State(state): State<ApplicationState>,
-) -> impl IntoResponse {
-    let mut conn = match state.db.get() {
-        Ok(c) => c,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
-    };
-
-    let tag = match tag::get_tag_by_slug(&mut conn, &slug) {
-        Ok(Some(t)) => t,
-        Ok(None) => return (StatusCode::NOT_FOUND, "category not found").into_response(),
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
-    };
-
-    let ancestors = tag_ancestors(&mut conn, tag.id);
-    let children = tag::get_children(&mut conn, tag.id).unwrap_or_default();
-    let movies = movie::list_movies_for_tag(&mut conn, tag.id).unwrap_or_default();
-
-    let tpl = CategoryTemplate { tag, ancestors, children, movies };
-
-    match tpl.render() {
-        Ok(body) => Html(body).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
     }
 }
 
@@ -539,8 +467,6 @@ pub fn router(state: ApplicationState) -> Router {
         )
         .route("/movies/{id}", get(handle_get_movie_render))
         .route("/movies", get(handle_query_movies))
-        .route("/categories", get(handle_categories_render))
-        .route("/categories/{slug}", get(handle_category_render))
         .route("/tags", get(handle_list_tags).post(handle_create_tag))
         .route(
             "/tags/{id}",

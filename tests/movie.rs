@@ -170,24 +170,4 @@ fn list_tags_for_movie_empty_when_no_tags() {
     assert!(tags.is_empty(), "Non-existent movie should have no tags");
 }
 
-#[test]
-fn list_movies_for_tag_returns_movies() {
-    let pool = pool();
-    let mut conn = pool.get().expect("Could not get connection");
 
-    let movies = movie::list_movies_for_tag(&mut conn, 5).expect("Should list movies");
-    let movie_ids: Vec<i32> = movies.iter().map(|m| m.id).collect();
-    assert!(movie_ids.contains(&1));
-    assert!(movie_ids.contains(&2));
-    assert!(movie_ids.contains(&3));
-    assert!(movie_ids.contains(&4));
-}
-
-#[test]
-fn list_movies_for_tag_empty_when_no_movies() {
-    let pool = pool();
-    let mut conn = pool.get().expect("Could not get connection");
-
-    let movies = movie::list_movies_for_tag(&mut conn, 1).expect("Should list movies");
-    assert!(movies.is_empty(), "Tag 1 should have no linked movies");
-}
