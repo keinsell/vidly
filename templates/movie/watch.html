@@ -46,7 +46,10 @@
     <div class="container">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;">
             <h1 class="title" style="margin:0;">{{ movie.title }}</h1>
-            <a href="/movies/{{ movie.id }}/edit" style="flex-shrink:0;border:1px solid #27272a;color:#71717a;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:0.8rem;font-weight:500;display:flex;align-items:center;gap:6px;">Edit</a>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+    <a href="/movies/{{ movie.id }}/edit" style="border:1px solid #27272a;color:#71717a;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:0.8rem;font-weight:500;display:flex;align-items:center;gap:6px;">Edit</a>
+    <a href="/movies/{{ movie.id }}/delete" style="border:1px solid #ef4444;color:#ef4444;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:0.8rem;font-weight:500;display:flex;align-items:center;gap:6px;">Delete</a>
+</div>
         </div>
         <p class="description">{{ movie.description }}</p>
         <div class="tags">

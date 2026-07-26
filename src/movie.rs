@@ -179,6 +179,24 @@ pub fn add_tag_to_movie(
     Ok(())
 }
 
+pub fn delete_movie(conn: &mut SqliteConnection, id: i32) -> Result<(), &'static str> {
+    diesel::delete(movie_tags::table.filter(movie_tags::movie_id.eq(id)))
+        .execute(conn)
+        .map_err(|_| "Database error deleting movie tags")?;
+
+    let deleted = diesel::delete(movies::table.filter(movies::id.eq(id)))
+        .execute(conn)
+        .map_err(|_| "Database error deleting movie")?;
+
+    if deleted == 0 {
+        return Err("Movie not found");
+    }
+
+    println!("MovieDeleted: id={}", id);
+
+    Ok(())
+}
+
 pub fn remove_tag_from_movie(
     conn: &mut SqliteConnection, movie_id: i32, tag_id: i32,
 ) -> Result<(), &'static str> {

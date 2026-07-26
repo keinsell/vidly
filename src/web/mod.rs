@@ -43,6 +43,12 @@ struct EditMovieTemplate {
     movie: movie::Movie,
 }
 
+#[derive(Template)]
+#[template(path = "movie/delete.html")]
+struct DeleteMovieTemplate {
+    movie: movie::Movie,
+}
+
 async fn handle_index_render(State(state): State<ApplicationState>) -> impl IntoResponse {
     let mut conn = match state.db.get() {
         Ok(c) => c,
@@ -616,6 +622,65 @@ async fn handle_remove_tag_form(
     Redirect::to(&format!("/movies/{movie_id}")).into_response()
 }
 
+async fn handle_movie_delete_render(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+    match movie::get_movie(&mut conn, id) {
+        Ok(Some(movie)) => {
+            let tpl = DeleteMovieTemplate { movie };
+            match tpl.render() {
+                Ok(body) => Html(body).into_response(),
+                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "template error").into_response(),
+            }
+        }
+        Ok(None) => (StatusCode::NOT_FOUND, Html("<h1>404 Not Found</h1>")).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    }
+}
+
+async fn handle_movie_delete_form(
+    Path(id): Path<i32>, State(state): State<ApplicationState>,
+) -> impl IntoResponse {
+    let mut conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    let movie_to_delete = match movie::get_movie(&mut conn, id) {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, "Movie not found").into_response(),
+        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "database error").into_response(),
+    };
+
+    if let Err(e) = movie::delete_movie(&mut conn, id) {
+        eprintln!("Delete error: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
+    }
+
+    // Best-effort cleanup of object store files
+    for source in movie_to_delete.sources.iter() {
+        if let Some(key) = source.strip_prefix("/object/")
+            && let Err(e) = state.object_store.delete_object(key).await
+        {
+            eprintln!("Delete warning: failed to delete object '{key}': {e}");
+        }
+    }
+    if let Some(key) = movie_to_delete.thumb.strip_prefix("/object/")
+        && let Err(e) = state.object_store.delete_object(key).await
+    {
+        eprintln!("Delete warning: failed to delete thumbnail '{key}': {e}");
+    }
+
+    (
+        StatusCode::SEE_OTHER,
+        [("Location", "/")],
+    ).into_response()
+}
+
 async fn handle_fallback() -> impl IntoResponse {
     (StatusCode::NOT_FOUND, Html("<h1>404 Not Found</h1>"))
 }
@@ -630,6 +695,10 @@ pub fn router(state: ApplicationState) -> Router {
         .route(
             "/movies/{id}/edit",
             get(handle_movie_edit_render).post(handle_movie_edit_form),
+        )
+        .route(
+            "/movies/{id}/delete",
+            get(handle_movie_delete_render).post(handle_movie_delete_form),
         )
         .route(
             "/movies/{id}",

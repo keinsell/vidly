@@ -170,6 +170,118 @@ fn list_tags_for_movie_empty_when_no_tags() {
     assert!(tags.is_empty(), "Non-existent movie should have no tags");
 }
 
+#[tokio::test]
+async fn delete_movie_removes_database_entries_and_objects() {
+    let pool = pool();
+    let store = store();
+
+    let mut conn = pool.get().expect("Could not get connection");
+
+    // Upload a movie so we have something to delete
+    let movie = movie::upload_movie(
+        "To Delete".into(),
+        "Will be removed".into(),
+        include_bytes!("fixtures/small.mp4").to_vec(),
+        "small.mp4".into(),
+        include_bytes!("fixtures/small.jpg").to_vec(),
+        "small.jpg".into(),
+        &mut conn,
+        &store,
+    )
+    .await
+    .expect("upload_movie should succeed");
+
+    let movie_id = movie.id;
+    let source_keys: Vec<String> = movie
+        .sources
+        .iter()
+        .filter_map(|s| s.strip_prefix("/object/").map(String::from))
+        .collect();
+    let thumb_key = movie
+        .thumb
+        .strip_prefix("/object/")
+        .map(String::from);
+
+    // Verify objects exist before deletion
+    for key in &source_keys {
+        assert!(
+            store.get_bytes(key).await.unwrap().is_some(),
+            "source '{}' should exist before deletion",
+            key
+        );
+    }
+    if let Some(ref key) = thumb_key {
+        assert!(
+            store.get_bytes(key).await.unwrap().is_some(),
+            "thumbnail '{}' should exist before deletion",
+            key
+        );
+    }
+
+    // Add a tag to the movie to ensure cascade cleanup
+    movie::add_tag_to_movie(&mut conn, movie_id, 1).expect("Should add tag");
+    let tags_before = movie::list_tags_for_movie(&mut conn, movie_id).expect("Should list tags");
+    assert!(!tags_before.is_empty(), "Tag should be linked before deletion");
+
+    // Delete the movie
+    movie::delete_movie(&mut conn, movie_id).expect("delete_movie should succeed");
+
+    // Verify DB entry is gone
+    let fetched = movie::get_movie(&mut conn, movie_id).expect("get_movie should not error");
+    assert!(fetched.is_none(), "Movie should no longer exist in database");
+
+    // Verify movie_tags entries are cleaned up
+    let tags_after = movie::list_tags_for_movie(&mut conn, movie_id).expect("Should list tags");
+    assert!(
+        tags_after.is_empty(),
+        "Movie tags should be cascade-deleted"
+    );
+
+    // Verify objects still exist (delete_movie only handles DB;
+    // object store cleanup is the caller's responsibility)
+    for key in &source_keys {
+        assert!(
+            store.get_bytes(key).await.unwrap().is_some(),
+            "source '{}' should still exist after DB-only deletion",
+            key
+        );
+    }
+
+    // Now clean up objects manually (simulating what the web handler does)
+    for key in &source_keys {
+        store.delete_object(key).await.unwrap();
+    }
+    if let Some(ref key) = thumb_key {
+        store.delete_object(key).await.unwrap();
+    }
+
+    // Verify objects are gone
+    for key in &source_keys {
+        assert!(
+            store.get_bytes(key).await.unwrap().is_none(),
+            "source '{}' should be deleted from object store",
+            key
+        );
+    }
+    if let Some(ref key) = thumb_key {
+        assert!(
+            store.get_bytes(key).await.unwrap().is_none(),
+            "thumbnail '{}' should be deleted from object store",
+            key
+        );
+    }
+}
+
+#[tokio::test]
+async fn delete_movie_nonexistent_returns_error() {
+    let pool = pool();
+    let mut conn = pool.get().expect("Could not get connection");
+
+    let result = movie::delete_movie(&mut conn, 999);
+    assert!(result.is_err(), "Deleting non-existent movie should fail");
+    assert_eq!(result.unwrap_err(), "Movie not found");
+}
+
 #[test]
 fn update_movie_updates_a_movie() {
     let pool = pool();
